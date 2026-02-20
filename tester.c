@@ -2,16 +2,12 @@
 
 int main() {
 
-    // int k = 2;
+ 
+    int twoDarray[3][3] =  {{1,2,3},
+                            {4,5,6}};
 
-    // int b = 1;
-    // int c = 2;
-    // int e = 3;
-
-
-    // printf("%d;%d;%d\n", (k<<b), (k<<c), (k<<e));
-
-
+    
+    printf("%d", twoDarray[0][2]);
     
     return 0;
 }

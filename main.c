@@ -10,14 +10,16 @@
 #define MAX_X 50
 #define MAX_Y 50
 
+
+
 int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
     int sharpASCII = 35;
 
     //0,1,2,3,4,5,6,7,8
     //fel, le, jobbra, balra, felésjobb; felésbal; leésjobb; leésbal (valamilyért most max 7)
 
-    int mozgasXtengely[] = {0, 0, 1, -1, -1, -1, 1, 1};
-    int mozgasYtengely[] = {1, -1, 0, 0, -1, 1, -1, 1};
+    int mozgasXtengely[] = {-1, 1, 0, 0, -1, -1, 1, 1}; 
+    int mozgasYtengely[] = {0, 0, 1, -1, 1, -1, 1, -1};
     
     int x = ROVER_POS[0] + mozgasXtengely[lepes];
     int y = ROVER_POS[1] + mozgasYtengely[lepes];
@@ -26,12 +28,12 @@ int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
     if (x >= 0 && x < MAX_X && y >= 0 && y < MAX_Y) {
         printf("Létező mező.\n");
         if (array[x][y] != sharpASCII) {
-            printf("Nincs blokk. Tudunk lépni");
+            printf("Nincs blokk. Tudunk lépni\n");
                 ROVER_POS[0] = x;
                 ROVER_POS[1] = y;
                 return 0;
         } else {
-            printf("Blokk van! Nem lépünk!");
+            printf("Blokk van! Nem lépünk!\n");
             return 1;
         }
 
@@ -42,6 +44,7 @@ int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
 
 }
 
+
 void Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
 
 
@@ -50,13 +53,12 @@ void Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
     printf("Hova mozogjon a rover? (lásd a számokat)\n"); 
     scanf("%d", &lepes);
 
-    // if (!mezoEllenorzo) {
-    //     return 1;
+    if (mezoEllenorzo(array, ROVER_POS, lepes) == 1) {
+        printf("A mezo nem szabad");
         
-    // }
+    }
 
 }
-
 
 #define BUFFER_SIZE 6000
 
@@ -94,8 +96,14 @@ int main() {
 
     int adottIdoTartam;
 
-    printf("Adja meg egy időtartamot (óra): \n");
-    scanf("%d", &adottIdoTartam);
+
+    while (adottIdoTartam < 24) {
+        printf("Adja meg egy időtartamot (óra): \n");
+        scanf("%d", &adottIdoTartam);
+
+    }
+
+    printf("Sikeresen töltöttünk be az időt!\n");
 
     int newLineCount = 0; //we count newlines and separate by them
     int row = 0;
@@ -110,7 +118,7 @@ int main() {
             continue;
         }
 
-        column += 1; //shift out array by 1 to the right
+        
 
         if (newlineHex == buffer[i]) {
             newLineCount += 1;
@@ -128,8 +136,9 @@ int main() {
         char convertedBuff = buffer[i];
         array[row][column] = convertedBuff; //converts hex to the char
         
-        //printf("%c\n", buffer[i]); 
+
        
+        column += 1; //shift out array by 1 to the right
        
     }
 
@@ -138,8 +147,15 @@ int main() {
     printf("Adott idő: %d\n", adottIdoTartam);
     printf("Elindulási idő: 6:30\n");
 
+    ///////////////////////////////
+    ///////////////////////////////
+    ///////////////////////////////
     Iranyitas(array, ROVER_POS);
     printf("New position of the rover: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
+    ///////////////////////////////
+    ///////////////////////////////
+    ///////////////////////////////
+
     //Elindulási adatok:
     //printf("Newline count %d\n", newLineCount);
 

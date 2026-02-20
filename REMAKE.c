@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <unistd.h> //read
-#include <stdlib.h>
 
 #include <fcntl.h> //open
 
@@ -10,6 +9,8 @@
 
 #define MAX_X 50
 #define MAX_Y 50
+
+
 
 int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
     int sharpASCII = 35;
@@ -43,6 +44,7 @@ int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
 
 }
 
+
 void Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
 
 
@@ -51,12 +53,12 @@ void Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
     printf("Hova mozogjon a rover? (lásd a számokat)\n"); 
     scanf("%d", &lepes);
 
-    if (mezoEllenorzo(array, ROVER_POS, lepes)) {
-        exit(EXIT_FAILURE);
+    if (!mezoEllenorzo) {
+        printf("A mezo nem szabad");
+        
     }
 
 }
-
 
 #define BUFFER_SIZE 6000
 
@@ -101,7 +103,7 @@ int main() {
     int row = 0;
     int column = 0;
 
-    for (int i = 0; i < bytes_read; i++) {
+    for (int i = 0; i < strlen(buffer); i++) {
         int commanHex = 44;
         int newlineHex = 10; //debug --> find if debugs are comprehended, if yes then use it to separate rows
         int S_Hex = 83;
@@ -110,7 +112,7 @@ int main() {
             continue;
         }
 
-      
+        
 
         if (newlineHex == buffer[i]) {
             newLineCount += 1;
@@ -128,9 +130,9 @@ int main() {
         char convertedBuff = buffer[i];
         array[row][column] = convertedBuff; //converts hex to the char
         
-        column += 1;
-        //printf("%c\n", buffer[i]); 
+
        
+        column += 1; //shift out array by 1 to the right
        
     }
 
@@ -139,8 +141,15 @@ int main() {
     printf("Adott idő: %d\n", adottIdoTartam);
     printf("Elindulási idő: 6:30\n");
 
+    ///////////////////////////////
+    ///////////////////////////////
+    ///////////////////////////////
     Iranyitas(array, ROVER_POS);
     printf("New position of the rover: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
+    ///////////////////////////////
+    ///////////////////////////////
+    ///////////////////////////////
+
     //Elindulási adatok:
     //printf("Newline count %d\n", newLineCount);
 
