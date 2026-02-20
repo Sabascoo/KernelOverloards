@@ -24,14 +24,54 @@ int ercmezo_van; //az előző lépésnél érc mező volt, tehát most érc mez�
 int ercDarab = 0; //hány darabot bányászott ki; majd meg is fogjuk különböztetni a típusokat
 int akku = 100; 
 
+float nap = 6.5; //napfelkelte; nap 6:30 --> 22:30 
+float ejszaka = 0; //éjszaka; 0-ról indulunk; lehet, hogy össze kéne vonni a kettőt binárisan we'll see
+
 struct MezoAdatai {
     int mozgas;
     int ercmezo;
 };
 
-// void AkkuChange(int akku, int napszak, int sebesseg, int mozgas, int banyasz) {
 
-// }
+void napJaras() {
+
+    if (nap > 0) { //játék van és nap van
+        printf("INFO: Nap van! %.1f óra maradt\n", nap);
+        nap -= 0.5; //kivonjuk egy félórát
+
+        if (nap == 0) { //ha kivonás után 0 lett, akkor a következő körben éjszaka lesz
+            ejszaka = 8;
+        }
+    } else if (ejszaka > 0) {
+        printf("INFO: Éjszaka van! %.1f óra maradt\n", ejszaka);
+        ejszaka -= 0.5;
+        if (ejszaka == 0) {
+            nap = 16;
+        }
+    }
+
+
+}
+
+void energiakoltseg(int mozgas, int sebesseg, int banyaszott) { //mozgott-e, ha igen mi a sebessége, ha nem akkor bányászott-e; MAJD: figyelembe vesszük a napot és az éjszakát
+    
+    if (mozgas) {
+        const int k = 2;
+        akku -= (k * (sebesseg * sebesseg)); //lehetne math.h headerrel is megoldani
+    }
+
+    else if (banyaszott) {
+        akku -= 2;
+    }
+
+    else {
+        akku -= 1;
+    }
+
+    if (nap > 0) {
+        akku += 10;
+    }
+}
 
 struct MezoAdatai mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes, int sebesseg) {
 
@@ -114,6 +154,11 @@ int Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
 
     int banyasz = -1;
     int standyMode = -1; //tudjon állni ás skippelni a kört
+    int banyaszatEredmeny = banyaszFunc(array, ROVER_POS);
+    int lepes = -1;
+    int sebesseg = 0; // 1 -> lassú; 2 --> normál; 3--> gyors
+
+    napJaras();
 
     while (standyMode != 0 && standyMode != 1) {
         printf("Marad a helyen ebben a körben? (0 = nem, csinálok valamit, 1 = igen, standbyMode)\n");
@@ -121,6 +166,7 @@ int Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
     }
 
     if (standyMode) {
+        energiakoltseg(0, 0, 0);
         return 1;
     }
 
@@ -130,11 +176,12 @@ int Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
     }
 
     if (banyasz) {
-        if (banyaszFunc(array, ROVER_POS)) {
+        if (banyaszatEredmeny) {
         printf("INFO: Sikeres bánya\n");
+        energiakoltseg(0, 0, 1);
         return 1;
-        } else {
-
+        } 
+        else {
             printf("INFO: Sikertelen bánya\n");
             return 0;
         }
@@ -142,10 +189,8 @@ int Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
 
     } 
 
-    int lepes = -1;
     printf("Rover poziciója mozgás előtt: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
 
-    int sebesseg = 0; // 1 -> lassú; 2 --> normál; 3--> gyors
 
     printf("Válasszon sebességet: (1,2,3) \n");
     scanf("%d", &sebesseg);
@@ -162,6 +207,8 @@ int Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
     struct MezoAdatai mezoEllenorzoEredmenyek;
     mezoEllenorzoEredmenyek = mezoEllenorzo(array, ROVER_POS, lepes, sebesseg);
 
+    energiakoltseg(mezoEllenorzoEredmenyek.mozgas, sebesseg, banyaszatEredmeny);
+
     printf("DEBUG; return mezo eredm MOZGAS: %d\n", mezoEllenorzoEredmenyek.mozgas);
     printf("DEBUG; return mezo eredm ERCMEZO: %d\n", mezoEllenorzoEredmenyek.ercmezo);
 
@@ -176,6 +223,8 @@ int Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
     } else {
         ercmezo_van = 0;
     }
+
+
 
     return 1;
 
@@ -222,6 +271,7 @@ void JatekKezdete(char array[MAX_X][MAX_Y], int ROVER_POS[]) { //játék logika
         while (!(Iranyitas(array, ROVER_POS))) {};
         printf("INFO: New position of the rover: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
         printf("INFO: Kibányászott érmek (db): %d\n", ercDarab);
+        printf ("A rover töltöttség szintje: %d\n", akku);
     }
 
 
