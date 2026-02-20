@@ -9,14 +9,20 @@
 
 #define MAX_X 50
 #define MAX_Y 50
+#define BUFFER_SIZE 6000
 
-
+#define sharpASCII 35
+#define B_ASCII 66 //kék ásvány
+#define Y_ASCII 89 //sárga ásvány
+#define G_ASCII 71 //zöld ásvány
+#define dotASCII 46
 
 int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
-    int sharpASCII = 35;
 
     //0,1,2,3,4,5,6,7,8
-    //fel, le, jobbra, balra, felésjobb; felésbal; leésjobb; leésbal (valamilyért most max 7)
+    //fel, le, jobbra, balra, felésjobb; felésbal; leésjobb; leésbal (most max 7 indexű)
+    int mozgas; // 1 vagy 0 FLAG 1 = van mozgás; 0 = nincs mozgás
+
 
     int mozgasXtengely[] = {-1, 1, 0, 0, -1, -1, 1, 1}; 
     int mozgasYtengely[] = {0, 0, 1, -1, 1, -1, 1, -1};
@@ -26,43 +32,88 @@ int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
 
 
     if (x >= 0 && x < MAX_X && y >= 0 && y < MAX_Y) {
-        printf("Létező mező.\n");
-        if (array[x][y] != sharpASCII) {
-            printf("Nincs blokk. Tudunk lépni\n");
+
+        switch (array[x][y]) {
+            case sharpASCII:
+                printf("Blokk van! Nem lépünk!\n");
+                mozgas = 0;
+                break;
+
+            case B_ASCII:
+            case Y_ASCII:
+            case G_ASCII:
+                printf("Érc mező! Lépjünk!\n");
+                mozgas = 1;
                 ROVER_POS[0] = x;
                 ROVER_POS[1] = y;
-                return 0;
-        } else {
-            printf("Blokk van! Nem lépünk!\n");
-            return 1;
+                break;
+
+            case dotASCII:
+                printf("Üres mező! Lépjünk!\n");
+                mozgas = 1;
+                ROVER_POS[0] = x;
+                ROVER_POS[1] = y;
+                break; 
+
+            default:
+                mozgas = 0;
+                break;
         }
 
-    } else {
-        printf("Hiba! Nincs ilyen mező\n");
-        return 1;
+        return mozgas;
     }
-
 }
-
 
 void Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
 
 
-    int lepes;
+    int lepes = -1;
     printf("Rover poziciója mozgás előtt: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
-    printf("Hova mozogjon a rover? (lásd a számokat)\n"); 
-    scanf("%d", &lepes);
 
-    if (mezoEllenorzo(array, ROVER_POS, lepes) == 1) {
-        printf("A mezo nem szabad");
-        
+
+    while(lepes < 0 || lepes > 7) {
+        printf("Hova mozogjon a rover? (lásd a számokat)\n"); 
+        scanf("%d", &lepes);
     }
+
+    if (!(mezoEllenorzo(array, ROVER_POS, lepes))) { //ha 0-t ad vissza az hamis
+        printf("A mezo nem szabad. Vagy nemlétező mező\n");
+        
+    } 
+
+    //lepes = 0;
+}
+
+void JatekKezdete(char array[MAX_X][MAX_Y], int ROVER_POS[]) { //játék logika
+    
+    int akku = 100;
+    int adottIdoTartam;
+
+    while (adottIdoTartam < 24) {
+        printf("Adja meg egy időtartamot (óra): \n");
+        scanf("%d", &adottIdoTartam);
+    }
+
+    int lepesekSzama = adottIdoTartam * 2; //egy óra = 2 félóra
+    printf("Sikeresen töltöttünk be az időt!\n");
+
+    printf("Rover Pozíciója: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
+    printf("Aksi játek elején: %d\n", akku);
+    printf("Adott idő: %d\n", adottIdoTartam);
+    printf("Elindulási idő: 6:30\n");
+    printf("Fordulatok/Lépések Száma: %d\n", lepesekSzama);
+    
+    for (int i = 0; i < lepesekSzama; i++) {
+        printf("Lépés száma: %d a %d-ból/ből\n", (i+1), lepesekSzama);
+        Iranyitas(array, ROVER_POS);
+        printf("New position of the rover: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
+    }
+
 
 }
 
-#define BUFFER_SIZE 6000
 
-int main() {
+int main() { //fájl beolvasás, fájl műveletek és funkció hívások
 
 
     char *FILENAME = "mars_map_50x50.csv";
@@ -86,24 +137,11 @@ int main() {
         
     }
 
-
     char array[50][50] = {0}; //tömb, a mezővel
-
+    int ROVER_POS[2]; 
 
     //Rover_POS; akku; nap, éj, áll, mozog, bányász, lassú, gyors, normál, elindulási idő 
-    int ROVER_POS[2]; 
-    int akku = 100;
 
-    int adottIdoTartam;
-
-
-    while (adottIdoTartam < 24) {
-        printf("Adja meg egy időtartamot (óra): \n");
-        scanf("%d", &adottIdoTartam);
-
-    }
-
-    printf("Sikeresen töltöttünk be az időt!\n");
 
     int newLineCount = 0; //we count newlines and separate by them
     int row = 0;
@@ -142,30 +180,7 @@ int main() {
        
     }
 
-    printf("Rover Pozíciója: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
-    printf("Aksi játek elején: %d\n", akku);
-    printf("Adott idő: %d\n", adottIdoTartam);
-    printf("Elindulási idő: 6:30\n");
-
-    ///////////////////////////////
-    ///////////////////////////////
-    ///////////////////////////////
-    Iranyitas(array, ROVER_POS);
-    printf("New position of the rover: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
-    ///////////////////////////////
-    ///////////////////////////////
-    ///////////////////////////////
-
-    //Elindulási adatok:
-    //printf("Newline count %d\n", newLineCount);
-
-    // for (int i = 0; i < 50; i++) {
-    //     for (int j = 0; j < 50; j++) {
-    //         printf("%c", array[i][j]);
-    //     }
-    // }
-
-    //User fogja íranyítani a robotot először:
+    JatekKezdete(array, ROVER_POS);
 
 
     if (close(filedesc) < 0) {

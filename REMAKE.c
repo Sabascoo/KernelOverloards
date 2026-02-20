@@ -18,8 +18,8 @@ int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
     //0,1,2,3,4,5,6,7,8
     //fel, le, jobbra, balra, felésjobb; felésbal; leésjobb; leésbal (valamilyért most max 7)
 
-    int mozgasXtengely[] = {0, 0, 1, -1, -1, -1, 1, 1};
-    int mozgasYtengely[] = {1, -1, 0, 0, -1, 1, -1, 1};
+    int mozgasXtengely[] = {-1, 1, 0, 0, -1, -1, 1, 1}; 
+    int mozgasYtengely[] = {0, 0, 1, -1, 1, -1, 1, -1};
     
     int x = ROVER_POS[0] + mozgasXtengely[lepes];
     int y = ROVER_POS[1] + mozgasYtengely[lepes];
@@ -28,12 +28,12 @@ int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
     if (x >= 0 && x < MAX_X && y >= 0 && y < MAX_Y) {
         printf("Létező mező.\n");
         if (array[x][y] != sharpASCII) {
-            printf("Nincs blokk. Tudunk lépni");
+            printf("Nincs blokk. Tudunk lépni\n");
                 ROVER_POS[0] = x;
                 ROVER_POS[1] = y;
                 return 0;
         } else {
-            printf("Blokk van! Nem lépünk!");
+            printf("Blokk van! Nem lépünk!\n");
             return 1;
         }
 
@@ -53,7 +53,7 @@ void Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
     printf("Hova mozogjon a rover? (lásd a számokat)\n"); 
     scanf("%d", &lepes);
 
-    if (!mezoEllenorzo) {
+    if (mezoEllenorzo(array, ROVER_POS, lepes) == 1) {
         printf("A mezo nem szabad");
         
     }
@@ -96,8 +96,14 @@ int main() {
 
     int adottIdoTartam;
 
-    printf("Adja meg egy időtartamot (óra): \n");
-    scanf("%d", &adottIdoTartam);
+
+    while (adottIdoTartam < 24) {
+        printf("Adja meg egy időtartamot (óra): \n");
+        scanf("%d", &adottIdoTartam);
+
+    }
+
+    printf("Sikeresen töltöttünk be az időt!\n");
 
     int newLineCount = 0; //we count newlines and separate by them
     int row = 0;
