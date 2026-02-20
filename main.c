@@ -7,6 +7,8 @@
 // ssize_t pread(int fildes, void *buf, size_t nbyte, off_t offset);
 //open is a system call that is used to open a new file and obtain its file descriptor
 
+//szerintem az érceket el fogom menteni ide valahova, legyen globális és hozzáférhető adatbázisból
+//lehet, hogy flagokat érdemes lenne bitesebben eltárolni
 #define MAX_X 50
 #define MAX_Y 50
 #define BUFFER_SIZE 6000
@@ -17,12 +19,14 @@
 #define G_ASCII 71 //zöld ásvány
 #define dotASCII 46
 
+
+
 int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
 
     //0,1,2,3,4,5,6,7,8
     //fel, le, jobbra, balra, felésjobb; felésbal; leésjobb; leésbal (most max 7 indexű)
     int mozgas; // 1 vagy 0 FLAG 1 = van mozgás; 0 = nincs mozgás
-
+    int ercMezo; //indikátor, van-e érc a mezőn 1 vagy 0 
 
     int mozgasXtengely[] = {-1, 1, 0, 0, -1, -1, 1, 1}; 
     int mozgasYtengely[] = {0, 0, 1, -1, 1, -1, 1, -1};
@@ -44,6 +48,7 @@ int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
             case G_ASCII:
                 printf("Érc mező! Lépjünk!\n");
                 mozgas = 1;
+                ercMezo = 1;
                 ROVER_POS[0] = x;
                 ROVER_POS[1] = y;
                 break;
@@ -60,12 +65,26 @@ int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
                 break;
         }
 
-        return mozgas;
+        return mozgas, ercMezo;
     }
+}
+
+void banyaszFunc(char array[MAX_X][MAX_Y], int ROVER_POS) {
+
 }
 
 void Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
 
+    int banyasz = -1; //1 or 0; ez is egy flag
+
+    while (!(banyasz != 0 || banyasz != 1)) {
+        printf("Bányászik vagy lép?\n");
+        scanf("%d", &banyasz);
+    }
+
+    if (banyasz) {
+        banyaszFunc(array, ROVER_POS);
+    }
 
     int lepes = -1;
     printf("Rover poziciója mozgás előtt: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);

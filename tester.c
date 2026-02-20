@@ -1,17 +1,17 @@
 #include <stdio.h>
 
+int* func() {
+  	
+  	// Creating static array
+  	static int arr[2] = {10, 20};
+    
+  	// Returning multiple values using static array
+  	return arr;
+}
 int main() {
-
- 
-    // int twoDarray[3][3] =  {{1,2,3},
-    //                         {4,5,6}};
-
-    
-    // printf("%d", twoDarray[0][2]);
-    
-
-    for (int i = 0; i < 10; i++) {
-        printf("%d", i);
-    }
+  
+    // Store the returened array
+    int* arr = func();  
+    printf("%d %d", arr[0], arr[1]);
     return 0;
 }
