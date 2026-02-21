@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <unistd.h> //read
-
+#include <stdint.h> //int8_t
 #include <fcntl.h> //open
 
 //open file descriptor, fildes; read nbyte bytes 
@@ -19,75 +19,183 @@
 #define G_ASCII 71 //zöld ásvány
 #define dotASCII 46
 
+//broadcast FLAGs
+int ercmezo_van; //az előző lépésnél érc mező volt, tehát most érc mezőn áll
+int ercDarab = 0; //hány darabot bányászott ki; majd meg is fogjuk különböztetni a típusokat
+int akku = 100; 
+
+float nap = 6.5; //napfelkelte; nap 6:30 --> 22:30 
+float ejszaka = 0; //éjszaka; 0-ról indulunk; lehet, hogy össze kéne vonni a kettőt binárisan we'll see
+
+struct MezoAdatai {
+    int mozgas;
+    int ercmezo;
+};
 
 
-int mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes) {
+void napJaras() {
+
+    if (nap > 0) { //játék van és nap van
+        printf("INFO: Nap van! %.1f óra maradt\n", nap);
+        nap -= 0.5; //kivonjuk egy félórát
+
+        if (nap == 0) { //ha kivonás után 0 lett, akkor a következő körben éjszaka lesz
+            ejszaka = 8;
+        }
+    } else if (ejszaka > 0) {
+        printf("INFO: Éjszaka van! %.1f óra maradt\n", ejszaka);
+        ejszaka -= 0.5;
+        if (ejszaka == 0) {
+            nap = 16;
+        }
+    }
+
+
+}
+
+void energiakoltseg(int mozgas, int sebesseg, int banyaszott) { //mozgott-e, ha igen mi a sebessége, ha nem akkor bányászott-e; MAJD: figyelembe vesszük a napot és az éjszakát
+    
+    if (mozgas) {
+        const int k = 2;
+        akku -= (k * (sebesseg * sebesseg)); //lehetne math.h headerrel is megoldani
+    }
+
+    else if (banyaszott) {
+        akku -= 2;
+    }
+
+    else {
+        akku -= 1;
+    }
+
+    if (nap > 0) {
+        akku += 10;
+    }
+}
+
+struct MezoAdatai mezoEllenorzo(char array[MAX_X][MAX_Y], int ROVER_POS[], int lepes, int sebesseg) {
 
     //0,1,2,3,4,5,6,7,8
     //fel, le, jobbra, balra, felésjobb; felésbal; leésjobb; leésbal (most max 7 indexű)
-    int mozgas; // 1 vagy 0 FLAG 1 = van mozgás; 0 = nincs mozgás
-    int ercMezo; //indikátor, van-e érc a mezőn 1 vagy 0 
+    struct MezoAdatai mezo;
 
-    int mozgasXtengely[] = {-1, 1, 0, 0, -1, -1, 1, 1}; 
-    int mozgasYtengely[] = {0, 0, 1, -1, 1, -1, 1, -1};
+    int8_t mozgasXtengely[] = {-1, 1, 0, 0, -1, -1, 1, 1};
+    int8_t mozgasYtengely[] = {0, 0, 1, -1, 1, -1, 1, -1};
+
     
-    int x = ROVER_POS[0] + mozgasXtengely[lepes];
-    int y = ROVER_POS[1] + mozgasYtengely[lepes];
 
 
-    if (x >= 0 && x < MAX_X && y >= 0 && y < MAX_Y) {
+    for (int i = 0; i < sebesseg; i++) { 
+
+        int x = ROVER_POS[0] + (mozgasXtengely[lepes] * i);
+        int y = ROVER_POS[1] + (mozgasYtengely[lepes] * i);
+
+        if (x >= 0 && x < MAX_X && y >= 0 && y < MAX_Y) {
 
         switch (array[x][y]) {
             case sharpASCII:
                 printf("Blokk van! Nem lépünk!\n");
-                mozgas = 0;
+                mezo.mozgas = 0;
+                mezo.ercmezo = 0;
                 break;
 
             case B_ASCII:
             case Y_ASCII:
             case G_ASCII:
                 printf("Érc mező! Lépjünk!\n");
-                mozgas = 1;
-                ercMezo = 1;
+                mezo.mozgas = 1;
+                mezo.ercmezo = 1;
                 ROVER_POS[0] = x;
                 ROVER_POS[1] = y;
                 break;
 
             case dotASCII:
                 printf("Üres mező! Lépjünk!\n");
-                mozgas = 1;
+                mezo.mozgas = 1;
+                mezo.ercmezo = 0;
                 ROVER_POS[0] = x;
                 ROVER_POS[1] = y;
                 break; 
 
-            default:
-                mozgas = 0;
-                break;
-        }
 
-        return mozgas, ercMezo;
+        } 
+        } else {
+            printf("Out of bounds move!\n");
+            mezo.mozgas = 0;
+            mezo.ercmezo = 0;
     }
+    }
+    
+     
+        printf("DEBUG:mező MOZGAS: %d\n", mezo.mozgas);
+        printf("DEBUG:mező ERCMEZO: %d\n", mezo.ercmezo);
+        return mezo;
+    }
+
+
+int banyaszFunc(char array[MAX_X][MAX_Y], int ROVER_POS[]) { //és egy globális ercmezo_van = 1
+    if (ercmezo_van) {
+        printf("Ércmezőn áll; Tud bányászni; Bányásszunk!\n");
+        ercDarab += 1;
+        array[ROVER_POS[0]][ROVER_POS[1]] = '.'; //üres lesz a mező
+
+        printf("%c", array[ROVER_POS[0]][ROVER_POS[1]]);
+
+        return 1; //siker
+
+    } else {
+        printf("ERROR: Nem érc mezőn áll; nem bányászunk!\n");
+        return 0;
+    }
+
 }
 
-void banyaszFunc(char array[MAX_X][MAX_Y], int ROVER_POS) {
+int Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
 
-}
+    int banyasz = -1;
+    int standyMode = -1; //tudjon állni ás skippelni a kört
+    int banyaszatEredmeny = banyaszFunc(array, ROVER_POS);
+    int lepes = -1;
+    int sebesseg = 0; // 1 -> lassú; 2 --> normál; 3--> gyors
 
-void Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
+    napJaras();
 
-    int banyasz = -1; //1 or 0; ez is egy flag
+    while (standyMode != 0 && standyMode != 1) {
+        printf("Marad a helyen ebben a körben? (0 = nem, csinálok valamit, 1 = igen, standbyMode)\n");
+        scanf("%d", &standyMode);
+    }
 
-    while (!(banyasz != 0 || banyasz != 1)) {
-        printf("Bányászik vagy lép?\n");
+    if (standyMode) {
+        energiakoltseg(0, 0, 0);
+        return 1;
+    }
+
+    while (banyasz != 0 && banyasz != 1) {
+        printf("Bányászik vagy lép? (0 = lép, 1 = bányászik)\n");
         scanf("%d", &banyasz);
     }
 
     if (banyasz) {
-        banyaszFunc(array, ROVER_POS);
-    }
+        if (banyaszatEredmeny) {
+        printf("INFO: Sikeres bánya\n");
+        energiakoltseg(0, 0, 1);
+        return 1;
+        } 
+        else {
+            printf("INFO: Sikertelen bánya\n");
+            return 0;
+        }
 
-    int lepes = -1;
+
+    } 
+
     printf("Rover poziciója mozgás előtt: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
+
+
+    printf("Válasszon sebességet: (1,2,3) \n");
+    scanf("%d", &sebesseg);
+
+    printf("INFO: Választott sebesség: %d\n", sebesseg);
 
 
     while(lepes < 0 || lepes > 7) {
@@ -95,18 +203,46 @@ void Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
         scanf("%d", &lepes);
     }
 
-    if (!(mezoEllenorzo(array, ROVER_POS, lepes))) { //ha 0-t ad vissza az hamis
-        printf("A mezo nem szabad. Vagy nemlétező mező\n");
-        
-    } 
 
-    //lepes = 0;
+    struct MezoAdatai mezoEllenorzoEredmenyek;
+    mezoEllenorzoEredmenyek = mezoEllenorzo(array, ROVER_POS, lepes, sebesseg);
+
+    energiakoltseg(mezoEllenorzoEredmenyek.mozgas, sebesseg, banyaszatEredmeny);
+
+    printf("DEBUG; return mezo eredm MOZGAS: %d\n", mezoEllenorzoEredmenyek.mozgas);
+    printf("DEBUG; return mezo eredm ERCMEZO: %d\n", mezoEllenorzoEredmenyek.ercmezo);
+
+    if (!(mezoEllenorzoEredmenyek.mozgas)) {
+        printf("Most nem tudott mozogni blokk miatt\n");
+        return 0;
+    }
+    if (mezoEllenorzoEredmenyek.ercmezo) {
+        ercmezo_van = 1;
+        printf("Követkető lépésben tud bányászni!\n");
+
+    } else {
+        ercmezo_van = 0;
+    }
+
+
+
+    return 1;
+
+
+
+
+
 }
 
 void JatekKezdete(char array[MAX_X][MAX_Y], int ROVER_POS[]) { //játék logika
-    
-    int akku = 100;
-    int adottIdoTartam;
+
+
+    int adottIdoTartam = 0;
+
+    const char *padding = 
+    "################################\n"
+    "################################\n"
+    "################################\n";
 
     while (adottIdoTartam < 24) {
         printf("Adja meg egy időtartamot (óra): \n");
@@ -116,6 +252,13 @@ void JatekKezdete(char array[MAX_X][MAX_Y], int ROVER_POS[]) { //játék logika
     int lepesekSzama = adottIdoTartam * 2; //egy óra = 2 félóra
     printf("Sikeresen töltöttünk be az időt!\n");
 
+////////////////////////////////
+////////////////////////////////
+////////////////////////////////
+
+
+    
+
     printf("Rover Pozíciója: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
     printf("Aksi játek elején: %d\n", akku);
     printf("Adott idő: %d\n", adottIdoTartam);
@@ -123,9 +266,12 @@ void JatekKezdete(char array[MAX_X][MAX_Y], int ROVER_POS[]) { //játék logika
     printf("Fordulatok/Lépések Száma: %d\n", lepesekSzama);
     
     for (int i = 0; i < lepesekSzama; i++) {
-        printf("Lépés száma: %d a %d-ból/ből\n", (i+1), lepesekSzama);
-        Iranyitas(array, ROVER_POS);
-        printf("New position of the rover: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
+        printf("%s", padding);
+        printf("INFO: Lépés száma: %d a %d-ból/ből\n", (i+1), lepesekSzama);
+        while (!(Iranyitas(array, ROVER_POS))) {};
+        printf("INFO: New position of the rover: %d:%d\n", ROVER_POS[0], ROVER_POS[1]);
+        printf("INFO: Kibányászott érmek (db): %d\n", ercDarab);
+        printf ("A rover töltöttség szintje: %d\n", akku);
     }
 
 
