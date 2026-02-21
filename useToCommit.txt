@@ -1,8 +1,0 @@
-git add <file-name>   # for specific file
-git add .             # for all changes
-
-git commit -m "Your message describing the change"
-
-git pull origin main --rebase
-
-git push origin main
