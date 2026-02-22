@@ -1,8 +1,4 @@
 
-
-
-
-
 #include <stdio.h>
 #include <unistd.h> //read
 #include <stdint.h> //int8_t
@@ -39,7 +35,9 @@ struct MezoAdatai {
     int ercmezo;
 };
 
-char radius[NEGYZET][NEGYZET]; //
+char radius[NEGYZET][NEGYZET]; 
+
+
 
 void countRadius(char array[MAX_X][MAX_Y], int ROVER_POS[]) { //minden körben változik
     int rovX = ROVER_POS[0];
@@ -55,12 +53,12 @@ void countRadius(char array[MAX_X][MAX_Y], int ROVER_POS[]) { //minden körben v
 
     radius[RADIUS][RADIUS] = 'S';
 
-    // for (int x = 0; x < NEGYZET; x++) {
-    //     for (int y = 0; y < NEGYZET; y++) {
-    //         printf("%c", radius[x][y]);
-    //     }
-    //     printf("\n");
-    // }
+    for (int x = 0; x < NEGYZET; x++) {
+        for (int y = 0; y < NEGYZET; y++) {
+            printf("%c", radius[x][y]);
+        }
+        printf("\n");
+    }
 }
 
 void napJaras() {
@@ -189,6 +187,8 @@ int Iranyitas(char array[MAX_X][MAX_Y], int ROVER_POS[]) {
     int sebesseg = 0; // 1 -> lassú; 2 --> normál; 3--> gyors
 
     napJaras();
+    countRadius(array, ROVER_POS);
+    
 
     while (standyMode != 0 && standyMode != 1) {
         printf("Marad a helyen ebben a körben? (0 = nem, csinálok valamit, 1 = igen, standbyMode)\n");
@@ -284,7 +284,7 @@ void JatekKezdete(char array[MAX_X][MAX_Y], int ROVER_POS[]) { //játék logika
 
     //radius betöltése
 
-    countRadius(array, ROVER_POS);
+    
 
 
 
