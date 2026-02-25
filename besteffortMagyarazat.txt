@@ -1,0 +1,51 @@
+
+Cluster érték és döntés (10)
+- Érték = gyémánt + szomszédos gyémántok
+- Prioritás = érték / (távolság + 1)
+- Cluster preferálás → ne hagyja el a közeli gyémánt klasztert feleslegesen
+
+út prioritás: az az úr, ahol nem több érem gyűjthető össze, mint a best effort értéke és ami a legközelebb van
+
+Működése:
+    1. megnézzük az összes olyan utat, ahol az össze szedhető érmek értéke egyenlő a best effort értékével
+    2. megnézzük a távolságukat és kiválasztjuk a legjobb utat
+    
+    egyébként ha nincs egyenlő best-effortal, akkor eggyel kisebb érték stb.
+
+
+function collect_diamonds(start, diamonds, T):
+    current = start
+    collected = 0
+
+    while T > 0 and diamonds not empty:
+        best = null
+        best_cost = infinity
+
+        for d in diamonds:
+            dx = abs(d.x - current.x)
+            dy = abs(d.y - current.y)
+            cost = ceil(max(dx, dy) / 3)
+
+            if cost <= T and cost < best_cost:
+                best = d
+                best_cost = cost
+
+        if best == null:
+            break   // nothing reachable
+
+        // move toward chosen diamond
+        while current != best and T > 0:
+            dx = best.x - current.x
+            dy = best.y - current.y
+
+            k = min(3, max(abs(dx), abs(dy)))
+            current.x += sign(dx) * min(k, abs(dx))
+            current.y += sign(dy) * min(k, abs(dy))
+
+            T -= 1
+
+        if current == best:
+            collected += 1
+            remove best from diamonds
+
+    return collected

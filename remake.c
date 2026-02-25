@@ -1,42 +1,55 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <string.h> //strtok
 
 #define MAX_X 50
 #define MAX_Y 50
 #define RADIUS 8
 #define NEGYZET (RADIUS * 2 + 1)
-#define MAX_ERMEK (50 * 50) //feltételezem, hogy az egész fájl csak az érmekből áll
+#define MAX_ERMEK (MAX_X * MAX_Y)
+#define MAX_KOROK 24
 
 typedef struct {
-    char tipus;     
-    int x;          
-    int y;         
-    double centrumTavolsag;
-    int szomszedokSzama;
+    char tipus;
+    int x, y;
     int osszegyujtott;
+    double bfsTavolsag;
+    int szomszedokSzama;
 } Erem;
 
 typedef struct {
-    int x;
-    int y;
+    int x, y;
 } Rover;
+
+char map[MAX_Y][MAX_X];
+char local_view[NEGYZET][NEGYZET];
 
 Erem global_ermek[MAX_ERMEK];
 int global_ermek_count = 0;
 
-char map[MAX_Y][MAX_X] = {0}; 
-char local_view[NEGYZET][NEGYZET]; //local_view = az a radius array
-
-int radius_indexek[MAX_ERMEK]; //az egész mezőben (a nagy mezőben) indexeljük az érmeket
+int radius_indexek[MAX_ERMEK];
 int radius_db = 0;
 
-Rover ROVER_POS;
+Rover roverPoz;
 
-int fajlBeolvas(const char *filename) {
+int osszesFelszedett = 0;
+int eppenAsunk = 0;
+
+
+/* ------------------------------------------------------------
+   FILE READ
+------------------------------------------------------------ */
+
+int fajlBeolvas(const char *filename)
+{
+    // Initialize map to empty so unused cells are predictable
+    for (int y = 0; y < MAX_Y; y++) {
+        for (int x = 0; x < MAX_X; x++) {
+            map[y][x] = '.';
+        }
+    }
+
     FILE *fp = fopen(filename, "r");
     if (!fp) {
         perror("fopen");
@@ -49,12 +62,19 @@ int fajlBeolvas(const char *filename) {
     while (fgets(sor, sizeof(sor), fp) && row < MAX_Y) {
         int col = 0;
         char *token = strtok(sor, ",\n\r");
-        while (token && col < MAX_X) {
-            map[row][col] = token[0];
 
-            if (token[0] == 'S') {
-                ROVER_POS.x = col;
-                ROVER_POS.y = row;
+        while (token && col < MAX_X) {
+            char c = token[0];
+
+            /* Normalize invalid characters */
+            if (c != '#' && c != '.' && c != 'S' && c != 'G' && c != 'Y' && c != 'B')
+                c = '.';
+
+            map[row][col] = c;
+
+            if (c == 'S') {
+                roverPoz.x = col;
+                roverPoz.y = row;
             }
 
             col++;
@@ -67,127 +87,392 @@ int fajlBeolvas(const char *filename) {
     return 0;
 }
 
-void printMap() {
+/* ------------------------------------------------------------
+   PRINT MAP
+------------------------------------------------------------ */
+
+void printMap()
+{
     for (int y = 0; y < MAX_Y; y++) {
-        for (int x = 0; x < MAX_X; x++) {
+        for (int x = 0; x < MAX_X; x++)
             printf("%c", map[y][x]);
-        }
-        printf("\n"); 
-    }
-}
-
-void radiusKiszamitasa(int roverX, int roverY) {
-    printf("\nLocal Radius View\n");
-    for (int i = 0; i < NEGYZET; i++) {
-        for (int j = 0; j < NEGYZET; j++) {
-            int mapY = roverY + (i - RADIUS);   
-            int mapX = roverX + (j - RADIUS);
-
-            if (mapX >= 0 && mapX < MAX_X && mapY >= 0 && mapY < MAX_Y) {
-                local_view[i][j] = map[mapY][mapX];
-            } else {
-                local_view[i][j] = '#'; //ha nincs benne a rangeban akkor block van, nem léphet ide
-            }
-        }
-    }
-    
-     
-    local_view[RADIUS][RADIUS] = 'S'; //biztonság kedvéért középre rakjuk a roverünket
-
-    for (int i = 0; i < NEGYZET; i++) { //debug
-        for (int j = 0; j < NEGYZET; j++) {
-            printf("%c", local_view[i][j]);
-        }
         printf("\n");
     }
 }
 
-int szomszedokFunc(int eremX, int eremY) {
-    int szomszedokSzama = 0;
-    for (int y = -1; y <= 1; y++) { //elmozdulas abs(1) minden irányba
-        for (int x = -1; x <= 1; x++) { 
-            if (x == 0 && y == 0) continue; //magát az érmet nem vesszük figyelembe
+/* ------------------------------------------------------------
+   LOCAL RADIUS VIEW
+------------------------------------------------------------ */
 
-            int ellenorzoX = eremX + x;
-            int ellenorzoY = eremY + y;
+void radiusKiszamitasa(int roverX, int roverY)
+{
+    printf("\nLocal Radius View\n");
 
-            if (ellenorzoX >= 0 && ellenorzoX < MAX_X && ellenorzoY >= 0 && ellenorzoY < MAX_Y) {
-                char c = map[ellenorzoY][ellenorzoX];
-                if (c == 'G' || c == 'Y' || c == 'B') {
-                    szomszedokSzama++;
-                }
+    for (int i = 0; i < NEGYZET; i++) {
+        for (int j = 0; j < NEGYZET; j++) {
+            int mapY = roverY + (i - RADIUS);
+            int mapX = roverX + (j - RADIUS);
+
+            if (mapX >= 0 && mapX < MAX_X && mapY >= 0 && mapY < MAX_Y)
+                local_view[i][j] = map[mapY][mapX];
+            else
+                local_view[i][j] = '#';
+        }
+    }
+
+    local_view[RADIUS][RADIUS] = 'S';
+
+    for (int i = 0; i < NEGYZET; i++) {
+        for (int j = 0; j < NEGYZET; j++)
+            printf("%c", local_view[i][j]);
+        printf("\n");
+    }
+}
+
+/* ------------------------------------------------------------
+   NEIGHBOR COUNT
+------------------------------------------------------------ */
+
+int szomszedokFunc(int x, int y)
+{
+    int count = 0;
+
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dy == 0) continue;
+
+            int nx = x + dx;
+            int ny = y + dy;
+
+            if (nx >= 0 && nx < MAX_X && ny >= 0 && ny < MAX_Y) {
+                char c = map[ny][nx];
+                if (c == 'G' || c == 'Y' || c == 'B')
+                    count++;
             }
         }
     }
-    return szomszedokSzama; //visszaadjuk a szomszédok számát
+    return count;
 }
 
-double centrumTavolsag(int x, int y, int center_x, int center_y) {
-    return sqrt(pow(x - center_x, 2) + pow(y - center_y, 2)); //Euclidean distance
+/* ------------------------------------------------------------
+   BFS DISTANCE
+------------------------------------------------------------ */
+
+int bfs_distance(int sx, int sy, int tx, int ty)
+{
+    int visited[MAX_Y][MAX_X] = {0};
+    int qx[MAX_X * MAX_Y], qy[MAX_X * MAX_Y], dist[MAX_X * MAX_Y];
+
+    int head = 0, tail = 0;
+
+    qx[tail] = sx;
+    qy[tail] = sy;
+    dist[tail] = 0;
+    visited[sy][sx] = 1;
+    tail++;
+
+    int dirs[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
+
+    while (head < tail) {
+        int x = qx[head];
+        int y = qy[head];
+        int d = dist[head];
+        head++;
+
+        if (x == tx && y == ty)
+            return d;
+
+        for (int i = 0; i < 4; i++) {
+            int nx = x + dirs[i][0];
+            int ny = y + dirs[i][1];
+
+            if (nx < 0 || nx >= MAX_X || ny < 0 || ny >= MAX_Y) continue;
+            if (visited[ny][nx]) continue;
+            if (map[ny][nx] == '#') continue;
+
+            visited[ny][nx] = 1;
+            qx[tail] = nx;
+            qy[tail] = ny;
+            dist[tail] = d + 1;
+            tail++;
+        }
+    }
+
+    return -1;
 }
 
-void globalEremekInit() { //initializáljuk az érmeket, amelyeket majd dinamikusan fogjuk változtatni
+/* ------------------------------------------------------------
+   BFS NEXT STEP
+------------------------------------------------------------ */
+
+void bfs_next_step(int sx, int sy, int tx, int ty, int *outX, int *outY)
+{
+    int visited[MAX_Y][MAX_X] = {0};
+    int parentX[MAX_Y][MAX_X];
+    int parentY[MAX_Y][MAX_X];
+
+    int qx[MAX_X * MAX_Y], qy[MAX_X * MAX_Y];
+    int head = 0, tail = 0;
+
+    qx[tail] = sx;
+    qy[tail] = sy;
+    visited[sy][sx] = 1;
+    parentX[sy][sx] = -1;
+    parentY[sy][sx] = -1;
+    tail++;
+
+    int dirs[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
+
+    while (head < tail) {
+        int x = qx[head];
+        int y = qy[head];
+        head++;
+
+        if (x == tx && y == ty)
+            break;
+
+        for (int i = 0; i < 4; i++) {
+            int nx = x + dirs[i][0];
+            int ny = y + dirs[i][1];
+
+            if (nx < 0 || nx >= MAX_X || ny < 0 || ny >= MAX_Y) continue;
+            if (visited[ny][nx]) continue;
+            if (map[ny][nx] == '#') continue;
+
+            visited[ny][nx] = 1;
+            parentX[ny][nx] = x;
+            parentY[ny][nx] = y;
+            qx[tail] = nx;
+            qy[tail] = ny;
+            tail++;
+        }
+    }
+
+    if (!visited[ty][tx]) {
+        *outX = sx;
+        *outY = sy;
+        return;
+    }
+
+    int cx = tx, cy = ty;
+
+    while (parentX[cy][cx] != -1) {
+        int px = parentX[cy][cx];
+        int py = parentY[cy][cx];
+
+        if (px == sx && py == sy) {
+            *outX = cx;
+            *outY = cy;
+            return;
+        }
+
+        cx = px;
+        cy = py;
+    }
+
+    *outX = sx;
+    *outY = sy;
+}
+
+/* ------------------------------------------------------------
+   INIT COINS
+------------------------------------------------------------ */
+
+void globalEremekInit()
+{
     global_ermek_count = 0;
+
     for (int y = 0; y < MAX_Y; y++) {
         for (int x = 0; x < MAX_X; x++) {
             char c = map[y][x];
-            if (c == 'G' || c == 'Y' || c == 'B') { //megvizsgáljuk, hogy a map array jelenlegi karaktere érem-e; ha igen akkor initializálunk
-                global_ermek[global_ermek_count].tipus = c;
-                global_ermek[global_ermek_count].x = x;
-                global_ermek[global_ermek_count].y = y;
-                global_ermek[global_ermek_count].osszegyujtott = 0;
-                global_ermek_count++; //növeljük eggyel, ez azért kell mert ezzel fogjuk majd elérni a global_ermek tömb egyes elemeit; egész mezőnek az érmek indexeit tartalmazza
-                //centrumTavolság és szomszédokSzama attributomak más funkcióhoz tartoznak
+            if (c == 'G' || c == 'Y' || c == 'B') {
+                Erem *e = &global_ermek[global_ermek_count++];
+                e->tipus = c;
+                e->x = x;
+                e->y = y;
+                e->osszegyujtott = 0;
+                e->bfsTavolsag = -1;
+                e->szomszedokSzama = 0;
             }
         }
     }
 }
 
-void radiusEremekFrissitese(int roverX, int roverY) {
+/* ------------------------------------------------------------
+   UPDATE RADIUS COINS
+------------------------------------------------------------ */
+
+void radiusEremekFrissitese(int rx, int ry)
+{
     radius_db = 0;
-    for (int i = 0; i < global_ermek_count; i++) { //amiután megvan a nagy mezőben lévő érmek száma, initializáljuk a többi attributumot hozzá
-        if (global_ermek[i].osszegyujtott) continue; //csak abban az esetben ha még nem szedtük össze-e érmet
 
+    for (int i = 0; i < global_ermek_count; i++) {
+        Erem *e = &global_ermek[i];
+        if (e->osszegyujtott) continue;
 
-        double tavolsag = centrumTavolsag(global_ermek[i].x, global_ermek[i].y, roverX, roverY); 
+        int tav = bfs_distance(rx, ry, e->x, e->y);
 
-        if (abs(global_ermek[i].x - roverX) <= RADIUS &&  //biztonsági ellenőrzés, éremek benne vannak-e a rangeban
-            abs(global_ermek[i].y - roverY) <= RADIUS) {
-            
-            global_ermek[i].centrumTavolsag = tavolsag; //initializáljuk a távolságot ill. a szomszéd érmeket
-            global_ermek[i].szomszedokSzama = szomszedokFunc(global_ermek[i].x, global_ermek[i].y);
-            radius_indexek[radius_db++] = i; //hozzáadjuk a radius index tömbhez az érmek indexét
+        if (abs(e->x - rx) <= RADIUS &&
+            abs(e->y - ry) <= RADIUS &&
+            tav != -1)
+        {
+            e->bfsTavolsag = tav;
+            e->szomszedokSzama = szomszedokFunc(e->x, e->y);
+            radius_indexek[radius_db++] = i;
         }
     }
 }
 
-void jatekKezdete() {
-    globalEremekInit();
-    radiusKiszamitasa(ROVER_POS.x, ROVER_POS.y);
-    radiusEremekFrissitese(ROVER_POS.x, ROVER_POS.y); //minden fordulatban kell frissíteni mielőtt mozogna a rover
+/* ------------------------------------------------------------
+   COIN VALUE
+------------------------------------------------------------ */
 
-    printf("Összes érem: %d\n", global_ermek_count);
-    printf("Radiusban lévő ermek: %d\n", radius_db);
-
-    for (int i = 0; i < radius_db; i++) {
-        int eremIndex = radius_indexek[i];
-        printf("Erem #%d: Tipus=%c, Pos=(%d,%d), Tavolsag=%.2f, Szomszedok=%d\n", 
-            i, global_ermek[eremIndex].tipus, global_ermek[eremIndex].x, global_ermek[eremIndex].y, 
-            global_ermek[eremIndex].centrumTavolsag, global_ermek[eremIndex].szomszedokSzama);
-    }
+int eremErteke(char t)
+{
+    if (t == 'G') return 3;
+    if (t == 'Y') return 2;
+    if (t == 'B') return 1;
+    return 0;
 }
 
-int main() {
-    if (fajlBeolvas("mars_map_50x50.csv") != 0) return 1;
-    printMap(); //debug
-    jatekKezdete();
+/* ------------------------------------------------------------
+   SELECT TARGET COIN
+------------------------------------------------------------ */
 
-    printf("DEBUG: \n");
-    printf("Global indexed: %d\n", radius_db);
-    for (int i = 0; i < radius_db; i++) {
-        printf("Rad: %d\n", radius_indexek[i]);
+int valasszCelErmet(int maradekKorok)
+{
+    double best = -1.0;
+    int bestIndex = -1;
+
+    for (int k = 0; k < radius_db; k++) {
+        int idx = radius_indexek[k];
+        Erem *e = &global_ermek[idx];
+
+        if (e->osszegyujtott) continue;
+        if (e->bfsTavolsag < 0) continue;
+
+        int koltseg = (int)e->bfsTavolsag + 1;
+        if (koltseg > maradekKorok) continue;
+
+        int ertek = eremErteke(e->tipus);
+        if (ertek == 0) continue;
+
+        double pont = (double)ertek / koltseg;
+
+        if (pont > best) {
+            best = pont;
+            bestIndex = idx;
+        }
     }
 
+    return bestIndex;
+}
 
+/* ------------------------------------------------------------
+   GAME LOOP
+------------------------------------------------------------ */
+
+/* ------------------------------------------------------------
+   GAME LOOP
+------------------------------------------------------------ */
+
+void jatek(int orak)
+{
+    int maradekKorok = orak * 2;   // 1 round = 0.5 hours
+    int osszPont = 0;
+    int osszesFelszedett = 0;
+
+    globalEremekInit();
+
+    while (maradekKorok > 0) {
+        printf("\n--- Kör, maradék körök: %d ---\n", maradekKorok);
+
+        int eppenAsunk = 0;   // reset digging flag
+
+        radiusKiszamitasa(roverPoz.x, roverPoz.y);
+        radiusEremekFrissitese(roverPoz.x, roverPoz.y);
+
+        printf("Összes érem: %d, radiusban: %d\n", global_ermek_count, radius_db);
+
+        /* Check if rover stands on a coin (by coordinates) */
+        for (int i = 0; i < global_ermek_count; i++) {
+            Erem *e = &global_ermek[i];
+            if (!e->osszegyujtott &&
+                e->x == roverPoz.x &&
+                e->y == roverPoz.y)
+            {
+                int ertek = eremErteke(e->tipus);
+                e->osszegyujtott = 1;
+
+                osszPont += ertek;
+                osszesFelszedett++;
+                eppenAsunk = 1;
+
+                maradekKorok--;
+
+                printf("Érme felszedve (%c), pont=%d, összPont=%d\n",
+                       e->tipus, ertek, osszPont);
+
+                goto kor_vege;
+            }
+        }
+
+        /* Select target */
+        int celIndex = valasszCelErmet(maradekKorok);
+        if (celIndex == -1) {
+            printf("Nincs elérhető érem az időkereten belül.\n");
+            break;
+        }
+
+        Erem *cel = &global_ermek[celIndex];
+        printf("Cél érme: %c (%d,%d), BFS=%.0f\n",
+               cel->tipus, cel->x, cel->y, cel->bfsTavolsag);
+
+        int nx, ny;
+        bfs_next_step(roverPoz.x, roverPoz.y, cel->x, cel->y, &nx, &ny);
+
+        printf("Rover lép: (%d,%d) -> (%d,%d)\n",
+               roverPoz.x, roverPoz.y, nx, ny);
+
+        /* Move rover */
+        map[roverPoz.y][roverPoz.x] = '.';
+        roverPoz.x = nx;
+        roverPoz.y = ny;
+        map[roverPoz.y][roverPoz.x] = 'S';
+
+        maradekKorok--;
+
+    kor_vege:
+
+        printf("Felszedett érmék eddig: %d\n", osszesFelszedett);
+        printf("Éppen ásunk: %s\n", eppenAsunk ? "igen" : "nem");
+
+        if (maradekKorok <= 0) {
+            printf("Elfogyott az idő.\n");
+            break;
+        }
+    }
+
+    printf("\nJáték vége. Összpont: %d\n", osszPont);
+}
+
+/* ------------------------------------------------------------
+   MAIN
+------------------------------------------------------------ */
+
+int main()
+{
+    int orak;
+
+    printf("Add meg az időt órában: ");
+    scanf("%d", &orak);
+
+    if (fajlBeolvas("mars_map_50x50.csv") != 0)
+        return 1;
+
+    printf("Kezdő pálya:\n");
+    printMap();
+
+    jatek(orak);
     return 0;
 }

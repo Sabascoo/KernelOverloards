@@ -98,3 +98,36 @@ Nap:
 - Döntésekhez használható:
   - ritkább típus előnyben
   - klaszter típus preferálása
+
+
+function BFS_DISTANCE(start_x, start_y):
+
+    create queue Q
+    create 2D array DIST[50][50], fill with INF
+
+    DIST[start_x][start_y] = 0
+    push (start_x, start_y) into Q
+
+    while Q is not empty:
+        (x, y) = Q.pop_front()
+
+        for each direction (dx, dy) in 8 directions:
+            nx = x + dx
+            ny = y + dy
+
+            if not inside_grid(nx, ny):
+                continue
+
+            if cell(nx, ny) is BLOCK:
+                continue
+
+            // optional: corner-cutting rule
+            if is_diagonal(dx, dy):
+                if diagonal_is_blocked(x, y, nx, ny):
+                    continue
+
+            if DIST[nx][ny] == INF:
+                DIST[nx][ny] = DIST[x][y] + 1
+                push (nx, ny) into Q
+
+    return DIST
