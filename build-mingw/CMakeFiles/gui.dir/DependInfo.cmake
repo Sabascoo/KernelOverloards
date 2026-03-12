@@ -8,13 +8,13 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "C:/Users/rikov/Documents/Kernel Overloards/gui.cpp" "CMakeFiles/gui.dir/gui.cpp.obj" "gcc" "CMakeFiles/gui.dir/gui.cpp.obj.d"
-  "C:/Users/rikov/Documents/Kernel Overloards/imgui.cpp" "CMakeFiles/gui.dir/imgui.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui.cpp.obj.d"
-  "C:/Users/rikov/Documents/Kernel Overloards/imgui_draw.cpp" "CMakeFiles/gui.dir/imgui_draw.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_draw.cpp.obj.d"
-  "C:/Users/rikov/Documents/Kernel Overloards/imgui_impl_glfw.cpp" "CMakeFiles/gui.dir/imgui_impl_glfw.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_impl_glfw.cpp.obj.d"
-  "C:/Users/rikov/Documents/Kernel Overloards/imgui_impl_opengl3.cpp" "CMakeFiles/gui.dir/imgui_impl_opengl3.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_impl_opengl3.cpp.obj.d"
-  "C:/Users/rikov/Documents/Kernel Overloards/imgui_tables.cpp" "CMakeFiles/gui.dir/imgui_tables.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_tables.cpp.obj.d"
-  "C:/Users/rikov/Documents/Kernel Overloards/imgui_widgets.cpp" "CMakeFiles/gui.dir/imgui_widgets.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_widgets.cpp.obj.d"
+  "C:/Users/rikov/Documents/KernelOverloards/gui.cpp" "CMakeFiles/gui.dir/gui.cpp.obj" "gcc" "CMakeFiles/gui.dir/gui.cpp.obj.d"
+  "C:/Users/rikov/Documents/KernelOverloards/imgui.cpp" "CMakeFiles/gui.dir/imgui.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui.cpp.obj.d"
+  "C:/Users/rikov/Documents/KernelOverloards/imgui_draw.cpp" "CMakeFiles/gui.dir/imgui_draw.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_draw.cpp.obj.d"
+  "C:/Users/rikov/Documents/KernelOverloards/imgui_impl_glfw.cpp" "CMakeFiles/gui.dir/imgui_impl_glfw.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_impl_glfw.cpp.obj.d"
+  "C:/Users/rikov/Documents/KernelOverloards/imgui_impl_opengl3.cpp" "CMakeFiles/gui.dir/imgui_impl_opengl3.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_impl_opengl3.cpp.obj.d"
+  "C:/Users/rikov/Documents/KernelOverloards/imgui_tables.cpp" "CMakeFiles/gui.dir/imgui_tables.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_tables.cpp.obj.d"
+  "C:/Users/rikov/Documents/KernelOverloards/imgui_widgets.cpp" "CMakeFiles/gui.dir/imgui_widgets.cpp.obj" "gcc" "CMakeFiles/gui.dir/imgui_widgets.cpp.obj.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

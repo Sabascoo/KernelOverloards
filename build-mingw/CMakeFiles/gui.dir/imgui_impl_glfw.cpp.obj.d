@@ -1,7 +1,7 @@
 CMakeFiles/gui.dir/imgui_impl_glfw.cpp.obj: \
- C:\Users\rikov\Documents\Kernel\ Overloards\imgui_impl_glfw.cpp \
- C:\Users\rikov\Documents\Kernel\ Overloards\imgui.h \
- C:\Users\rikov\Documents\Kernel\ Overloards\imconfig.h \
+ C:\Users\rikov\Documents\KernelOverloards\imgui_impl_glfw.cpp \
+ C:\Users\rikov\Documents\KernelOverloards\imgui.h \
+ C:\Users\rikov\Documents\KernelOverloards\imconfig.h \
  C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/float.h \
  C:/msys64/mingw64/include/float.h C:/msys64/mingw64/include/crtdefs.h \
  C:/msys64/mingw64/include/corecrt.h C:/msys64/mingw64/include/_mingw.h \
@@ -32,7 +32,7 @@ CMakeFiles/gui.dir/imgui_impl_glfw.cpp.obj: \
  C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/mm_malloc.h \
  C:/msys64/mingw64/include/errno.h \
  C:/msys64/mingw64/include/c++/15.2.0/bits/std_abs.h \
- C:\Users\rikov\Documents\Kernel\ Overloards\imgui_impl_glfw.h \
+ C:\Users\rikov\Documents\KernelOverloards\imgui_impl_glfw.h \
  C:/msys64/mingw64/include/GLFW/glfw3.h \
  C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/stdint.h \
  C:/msys64/mingw64/include/stdint.h C:/msys64/mingw64/include/GL/gl.h \

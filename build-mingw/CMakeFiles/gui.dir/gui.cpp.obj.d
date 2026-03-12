@@ -1,5 +1,5 @@
 CMakeFiles/gui.dir/gui.cpp.obj: \
- C:\Users\rikov\Documents\Kernel\ Overloards\gui.cpp \
+ C:\Users\rikov\Documents\KernelOverloards\gui.cpp \
  C:/msys64/mingw64/include/c++/15.2.0/iostream \
  C:/msys64/mingw64/include/c++/15.2.0/bits/requires_hosted.h \
  C:/msys64/mingw64/include/c++/15.2.0/x86_64-w64-mingw32/bits/c++config.h \
@@ -180,8 +180,8 @@ CMakeFiles/gui.dir/gui.cpp.obj: \
  C:/msys64/mingw64/include/c++/15.2.0/deque \
  C:/msys64/mingw64/include/c++/15.2.0/bits/stl_deque.h \
  C:/msys64/mingw64/include/c++/15.2.0/bits/deque.tcc \
- C:\Users\rikov\Documents\Kernel\ Overloards\imgui.h \
- C:\Users\rikov\Documents\Kernel\ Overloards\imconfig.h \
+ C:\Users\rikov\Documents\KernelOverloards\imgui.h \
+ C:\Users\rikov\Documents\KernelOverloards\imconfig.h \
  C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/float.h \
  C:/msys64/mingw64/include/float.h \
  C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/stdarg.h \
@@ -190,8 +190,8 @@ CMakeFiles/gui.dir/gui.cpp.obj: \
  C:/msys64/mingw64/include/string.h \
  C:/msys64/mingw64/include/sec_api/string_s.h \
  C:/msys64/mingw64/include/assert.h \
- C:\Users\rikov\Documents\Kernel\ Overloards\imgui_impl_glfw.h \
- C:\Users\rikov\Documents\Kernel\ Overloards\imgui_impl_opengl3.h \
+ C:\Users\rikov\Documents\KernelOverloards\imgui_impl_glfw.h \
+ C:\Users\rikov\Documents\KernelOverloards\imgui_impl_opengl3.h \
  C:/msys64/mingw64/include/GLFW/glfw3.h \
  C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/stdint.h \
  C:/msys64/mingw64/include/stdint.h C:/msys64/mingw64/include/GL/gl.h

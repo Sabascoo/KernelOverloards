@@ -16,6 +16,7 @@
 
 
 // --- Adatszerkezetek ---
+
 struct Cell { char type = '.'; };
 static const int MAP_W = 50;
 static const int MAP_H = 50;
@@ -34,10 +35,12 @@ struct Rover {
 } rover;
 
 struct Vilag {
-    float ora = 6.5f; 
-    float idosebesseg = 0.001f; // Kicsit lassabbra véve (0.001f volt)
+    float ora = 6.0f;
+    float idosebesseg = 0.001f;
 } vilag;
 
+int startX = 0;
+int startY = 0;
 
 
 
@@ -117,21 +120,32 @@ ImU32 GetEgboltSzin(float h) {
 void LoadMap(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) return;
+
     std::string line;
     int row = 0;
+
     while (std::getline(file, line) && row < MAP_H) {
         std::stringstream ss(line);
         std::string cell;
         int col = 0;
+
         while (std::getline(ss, cell, ',') && col < MAP_W) {
             if (!cell.empty()) {
                 mapGrid[row][col].type = cell[0];
-                if (cell[0] == 'S') { rover.x = col; rover.y = row; }
+
+                if (cell[0] == 'S') {
+                    rover.x = col;
+                    rover.y = row;
+                    startX = col;
+                    startY = row;
+                }
             }
             col++;
         }
         row++;
     }
+
+    file.close();
 }
 
 void DrawIranytu(ImVec2 p, float sugar) {
@@ -451,7 +465,7 @@ void DrawBalPanel() {
     
 
     //NEW COORDINATE TRACKER (Placed after FPV) ---
-    ImGui::Text("NAVIGATION GRID (REL)");
+    ImGui::Text("NAVIGATION GRID");
     DrawCoordinateTracker(ImVec2(region.x, 180)); // Fixed height of 180
 
     // --- 5. TELEMETRY DIAGRAM ---
@@ -580,17 +594,30 @@ void DrawMap() {
 
     // --- 2. RÉTEG: AI ÚTVONAL ---
     if (!aiRoute.empty()) {
-        ImVec2 startPos = ImVec2(p.x + aiRoute[0].x * cs + cs/2, p.y + aiRoute[0].y * cs + cs/2);
+        // Draw true mission start from the map's S position
+        ImVec2 startPos = ImVec2(p.x + startX * cs + cs / 2.0f,
+                                p.y + startY * cs + cs / 2.0f);
         dl->AddCircleFilled(startPos, cs * 0.4f, IM_COL32(255, 50, 50, 255));
+
         ImVec2 prevPoint = startPos;
-        for (int i = 1; i <= currentRouteIndex && i < (int)aiRoute.size(); i++) {
-            ImVec2 nextPoint = ImVec2(p.x + aiRoute[i].x * cs + cs/2, p.y + aiRoute[i].y * cs + cs/2);
+
+        int maxIndex = std::min(currentRouteIndex, (int)aiRoute.size());
+        for (int i = 0; i < maxIndex; i++) {
+            ImVec2 nextPoint = ImVec2(p.x + aiRoute[i].x * cs + cs / 2.0f,
+                                    p.y + aiRoute[i].y * cs + cs / 2.0f);
+
             dl->AddLine(prevPoint, nextPoint, IM_COL32(255, 140, 0, 200), 2.5f);
             dl->AddCircleFilled(nextPoint, cs * 0.15f, IM_COL32(255, 200, 0, 255));
+
             if (aiRoute[i].state == DIGGING) {
-                dl->AddLine(ImVec2(nextPoint.x-cs*0.3f, nextPoint.y-cs*0.3f), ImVec2(nextPoint.x+cs*0.3f, nextPoint.y+cs*0.3f), IM_COL32(255, 50, 50, 255), 2.0f);
-                dl->AddLine(ImVec2(nextPoint.x+cs*0.3f, nextPoint.y-cs*0.3f), ImVec2(nextPoint.x-cs*0.3f, nextPoint.y+cs*0.3f), IM_COL32(255, 50, 50, 255), 2.0f);
+                dl->AddLine(ImVec2(nextPoint.x - cs * 0.3f, nextPoint.y - cs * 0.3f),
+                            ImVec2(nextPoint.x + cs * 0.3f, nextPoint.y + cs * 0.3f),
+                            IM_COL32(255, 50, 50, 255), 2.0f);
+                dl->AddLine(ImVec2(nextPoint.x + cs * 0.3f, nextPoint.y - cs * 0.3f),
+                            ImVec2(nextPoint.x - cs * 0.3f, nextPoint.y + cs * 0.3f),
+                            IM_COL32(255, 50, 50, 255), 2.0f);
             }
+
             prevPoint = nextPoint;
         }
     }
@@ -620,23 +647,26 @@ void DrawMap() {
     
 
 
-void UpdateAILogic() {
-    if (aiRoute.empty()) {
-    rover.state = STANDING;
-    return;
+void UpdateAILogic(float deltaTime) {
+    if (aiRoute.empty() || currentRouteIndex >= (int)aiRoute.size()) {
+        rover.state = STANDING;
+        return;
     }
 
+    timeSinceLastStep += deltaTime;
 
-    // Controls how fast the simulation plays back in the GUI
-    // 0.016f assumes 60FPS. Increase the 0.1f threshold to slow it down.
-    timeSinceLastStep += 0.016f; 
+    // Playback speed in real seconds per logged route step
+    const float PLAYBACK_STEP_SECONDS = 3.0f;
 
-    if (timeSinceLastStep >= 5.0f) {  //change 0.1f to higher value to set a higher second
-        timeSinceLastStep = 0.0f;
-        
-        RouteStep& s = aiRoute[currentRouteIndex];
+    if (timeSinceLastStep < PLAYBACK_STEP_SECONDS) {
+        return;
+    }
 
-        // --- Console message about the upcoming step ---
+    timeSinceLastStep = 0.0f;
+
+    RouteStep& s = aiRoute[currentRouteIndex];
+
+    // Console message about the upcoming step
     {
         std::ostringstream msg;
         msg << "[#" << s.round << "] ";
@@ -656,34 +686,40 @@ void UpdateAILogic() {
         ConsoleAdd(msg.str());
     }
 
-        // Update direction based on movement
-        if (s.x > rover.x) rover.irany = 90.0f;
-        else if (s.x < rover.x) rover.irany = 270.0f;
-        else if (s.y > rover.y) rover.irany = 180.0f;
-        else if (s.y < rover.y) rover.irany = 0.0f;
+    // Compute direction from previous rover position to the new one.
+    int dx = s.x - rover.x;
+    int dy = s.y - rover.y;
 
-        // Sync Rover Object
-        rover.x = s.x;
-        rover.y = s.y;
-        rover.battery = s.battery;
-        rover.state = s.state;
-        rover.sebesseg = s.speed;
-        rover.zold = s.green;
-        rover.sarga = s.yellow;
-        rover.kek = s.blue;
-        rover.tavolsag = (float)s.pathCount;
-
-        // Sync Global World Time
-        vilag.ora = s.exactTime;
-
-        // Update Nav Trail
-        ImVec2 newPos = ImVec2((float)rover.x, (float)rover.y);
-        if (roverHistory.empty() || roverHistory.back().x != newPos.x || roverHistory.back().y != newPos.y) {
-            roverHistory.push_back(newPos);
-        }
-
-        currentRouteIndex++;
+    if (dx != 0 || dy != 0) {
+        float angleDeg = atan2f((float)dy, (float)dx) * 180.0f / (float)M_PI;
+        rover.irany = angleDeg + 90.0f;
+        if (rover.irany < 0.0f) rover.irany += 360.0f;
+        if (rover.irany >= 360.0f) rover.irany -= 360.0f;
     }
+
+    // Sync rover from route step
+    rover.x = s.x;
+    rover.y = s.y;
+    rover.battery = s.battery;
+    rover.state = s.state;
+    rover.sebesseg = s.speed;
+    rover.zold = s.green;
+    rover.sarga = s.yellow;
+    rover.kek = s.blue;
+    rover.tavolsag = (float)s.pathCount;
+
+    // Sync world time
+    vilag.ora = s.exactTime;
+
+    // Update breadcrumb trail
+    ImVec2 newPos((float)rover.x, (float)rover.y);
+    if (roverHistory.empty() ||
+        roverHistory.back().x != newPos.x ||
+        roverHistory.back().y != newPos.y) {
+        roverHistory.push_back(newPos);
+    }
+
+    currentRouteIndex++;
 }
 
 void LoadAIRoute(const std::string& filename) {
@@ -691,6 +727,10 @@ void LoadAIRoute(const std::string& filename) {
     if (!file.is_open()) return;
 
     aiRoute.clear();
+    currentRouteIndex = 0;
+    timeSinceLastStep = 0.0f;
+    roverHistory.clear();
+
     std::string line;
 
     while (std::getline(file, line)) {
@@ -701,11 +741,15 @@ void LoadAIRoute(const std::string& filename) {
         RouteStep step;
         std::vector<std::string> row;
 
-        while (std::getline(ss, cell, ',')) row.push_back(cell);
+        while (std::getline(ss, cell, ',')) {
+            row.push_back(cell);
+        }
 
         if (row.size() >= 13) {
             try {
                 step.round = std::stoi(row[0]);
+                if (step.round < 0) continue;
+
                 step.x = std::stoi(row[1]);
                 step.y = std::stoi(row[2]);
                 step.battery = std::stof(row[3]);
@@ -724,7 +768,8 @@ void LoadAIRoute(const std::string& filename) {
                 else step.state = STANDING;
 
                 aiRoute.push_back(step);
-            } catch (...) {
+            }
+            catch (...) {
                 continue;
             }
         }
@@ -732,7 +777,6 @@ void LoadAIRoute(const std::string& filename) {
 
     file.close();
 
-    // ✅ After loading, set totals from the last step ONCE
     if (!aiRoute.empty()) {
         const RouteStep& last = aiRoute.back();
         goalGreen = last.green;
@@ -742,8 +786,21 @@ void LoadAIRoute(const std::string& filename) {
     } else {
         goalGreen = goalYellow = goalBlue = goalTotal = 0;
     }
-}
 
+    // Seed breadcrumb trail from the true map start position.
+    roverHistory.push_back(ImVec2((float)startX, (float)startY));
+
+    // Reset rover to start position before playback begins.
+    rover.x = startX;
+    rover.y = startY;
+    rover.battery = 100.0f;
+    rover.zold = rover.sarga = rover.kek = 0;
+    rover.sebesseg = 0;
+    rover.irany = 0.0f;
+    rover.tavolsag = 0.0f;
+    rover.state = STANDING;
+    vilag.ora = 6.0f;
+}
 
 int main() {
     if (!glfwInit()) return 1;
@@ -759,9 +816,10 @@ int main() {
     LoadMap("mars_map_50x50.csv");
     LoadAIRoute("ai_route.txt");
 
+    roverHistory.clear();
+    roverHistory.push_back(ImVec2((float)rover.x, (float)rover.y));
 
-
-    float lastTime = 0.0f;
+    float lastTime = (float)glfwGetTime();
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -777,7 +835,7 @@ int main() {
         ImGui::NewFrame();
 
         // --- AI Update ---
-        UpdateAILogic();
+        UpdateAILogic(deltaTime);
 
         // --- Trigger popup when route finishes (once) ---
         // NOTE: currentRouteIndex is incremented after applying a step.

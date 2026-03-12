@@ -1,7 +1,7 @@
 CMakeFiles/gui.dir/imgui.cpp.obj: \
- C:\Users\rikov\Documents\Kernel\ Overloards\imgui.cpp \
- C:\Users\rikov\Documents\Kernel\ Overloards\imgui.h \
- C:\Users\rikov\Documents\Kernel\ Overloards\imconfig.h \
+ C:\Users\rikov\Documents\KernelOverloards\imgui.cpp \
+ C:\Users\rikov\Documents\KernelOverloards\imgui.h \
+ C:\Users\rikov\Documents\KernelOverloards\imconfig.h \
  C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/float.h \
  C:/msys64/mingw64/include/float.h C:/msys64/mingw64/include/crtdefs.h \
  C:/msys64/mingw64/include/corecrt.h C:/msys64/mingw64/include/_mingw.h \
@@ -32,7 +32,7 @@ CMakeFiles/gui.dir/imgui.cpp.obj: \
  C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/mm_malloc.h \
  C:/msys64/mingw64/include/errno.h \
  C:/msys64/mingw64/include/c++/15.2.0/bits/std_abs.h \
- C:\Users\rikov\Documents\Kernel\ Overloards\imgui_internal.h \
+ C:\Users\rikov\Documents\KernelOverloards\imgui_internal.h \
  C:/msys64/mingw64/include/stdio.h \
  C:/msys64/mingw64/include/corecrt_stdio_config.h \
  C:/msys64/mingw64/include/_mingw_off_t.h \

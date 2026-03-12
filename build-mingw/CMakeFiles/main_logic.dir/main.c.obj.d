@@ -1,5 +1,5 @@
 CMakeFiles/main_logic.dir/main.c.obj: \
- C:\Users\rikov\Documents\Kernel\ Overloards\main.c \
+ C:\Users\rikov\Documents\KernelOverloards\main.c \
  C:/msys64/mingw64/include/stdio.h \
  C:/msys64/mingw64/include/corecrt_stdio_config.h \
  C:/msys64/mingw64/include/corecrt.h C:/msys64/mingw64/include/_mingw.h \
@@ -25,4 +25,4 @@ CMakeFiles/main_logic.dir/main.c.obj: \
  C:/msys64/mingw64/include/sec_api/stdlib_s.h \
  C:/msys64/mingw64/include/malloc.h \
  C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/mm_malloc.h \
- C:/msys64/mingw64/include/errno.h
+ C:/msys64/mingw64/include/errno.h C:/msys64/mingw64/include/math.h

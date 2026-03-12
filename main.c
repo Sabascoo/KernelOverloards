@@ -2,31 +2,32 @@
 // Compile:  gcc -O2 -std=c11 rover_sim.c -o rover_sim
 // Run:      ./rover_sim
 //
-// Reads:    mars_map_50x50.csv   (same format as your GUI expects: 50 lines, comma-separated cells)
-// Writes:   rover_log.csv        (GUI-compatible 13 columns, NO header)
-//           ai_route.txt         (same content as rover_log.csv, for your current GUI LoadAIRoute)
+// Reads:    mars_map_50x50.csv
+// Writes:   rover_log.csv
+//           ai_route.txt
 //
 // Log columns (13):
-// round,x,y,battery,speed,pathCount,totalMinerals,green,yellow,blue,timePeriod,exactTime,stateStr
-// stateStr in {STANDING, MOVING, DIGGING}
+// round,x,y,battery,v,megtettCellak,totalMinerals,green,yellow,blue,ido_intervalum,napszak,muvelet
+// muvelet in {STANDING, MOVING, DIGGING}
 
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define MAP_SIZE 50
 #define W MAP_SIZE
 #define H MAP_SIZE
 
-#define TICKS_PER_HOUR 2
-#define DAY_TICKS 32
-#define NIGHT_TICKS 16
-#define CYCLE_TICKS (DAY_TICKS + NIGHT_TICKS)
+#define UTES_PER_ORA 2
+#define NAP_UTES 32
+#define ESZAKA_UTES 16
+#define CIKLUS_UTES (NAP_UTES + ESZAKA_UTES) //24 órás napot takar
 
-#define BAT_MAX 100.0
-#define K_MOVE 2.0
+#define MAX_AKKU 100.0
+#define K_ALLANDO 2.0
 
 #define MAX_PATH (W * H)
 
@@ -36,14 +37,13 @@ typedef struct {
     int8_t x, y;
     double bat;
 
-    int green, yellow, blue;  // collected minerals by color
-    int tick;                 // half-hour rounds since start
-    int moved_cells;          // total moved cells (pathCount)
-
+    int green, yellow, blue;
+    int utes;         // half-hour rounds since start
+    int moved_cells;  // total moved cells
 } Rover;
 
 typedef struct {
-    int total_ticks;
+    int total_utess;
     int8_t sx, sy;
 } Mission;
 
@@ -53,120 +53,236 @@ typedef struct {
     bool open, closed;
 } Node;
 
+typedef struct {
+    bool ok;
+    int end_utes;
+    double end_bat;
+} FeasResult;
+
 static uint8_t mapv[H][W];      // 0 = free, 1 = obstacle, 2 = mineral
 static char    mapc[H][W];      // '.', '#', 'B','Y','G','S'
 static uint8_t home_dist[H][W]; // 8-dir BFS distance to home, 255 = unreachable
 
-static inline int inb(int x, int y) { return x >= 0 && x < W && y >= 0 && y < H; }
+static inline int inRange(int x, int y) { return x >= 0 && x < W && y >= 0 && y < H; }
 
-static inline bool is_day_tick(int tick) {
-    // Tick 0 starts at 06:30 and is daytime; daytime lasts 32 ticks (16h)
-    return (tick % CYCLE_TICKS) < DAY_TICKS;
+static inline double hatarRogzito(double bemenet, double alsoHatar, double felsoHatar) {
+    if (bemenet < alsoHatar) return alsoHatar;
+    if (bemenet > felsoHatar) return felsoHatar;
+    return bemenet;
 }
 
-static inline float exact_time_hours_0630(int tick) {
-    // 06:30 = 6.5 hours; each tick = 0.5 hours
-    float t = 6.5f + 0.5f * (float)tick;
+static inline double mozgasKoltseg(int v) { return K_ALLANDO * (double)(v * v); } //k * v^2
+static inline double idlePozicio(bool banyasz) { return banyasz ? 2.0 : 1.0; }
+static inline double napiToltes(bool nap) { return nap ? 10.0 : 0.0; }
+
+
+static bool banyaszhat(double bat) {
+    return bat >= idlePozicio(true); // banyasz cost = 2
+}
+
+
+static double mozogFunc(double bat, bool nap, int v) {
+    return hatarRogzito(bat - mozgasKoltseg(v) + napiToltes(nap), 0.0, MAX_AKKU);
+}
+
+static double banyaszFunc(double bat, bool nap) {
+    return hatarRogzito(bat - idlePozicio(true) + napiToltes(nap), 0.0, MAX_AKKU);
+}
+
+static double allFunc(double bat, bool nap) {
+    if (nap) {
+        return hatarRogzito(bat - idlePozicio(false) + napiToltes(nap), 0.0, MAX_AKKU);
+    }
+    // At night, if battery < 1, rover cannot spend that energy; remains at 0.
+    if (bat >= idlePozicio(false)) {
+        return hatarRogzito(bat - idlePozicio(false), 0.0, MAX_AKKU);
+    }
+    return 0.0;
+}
+
+
+static bool mozoghat(double bat, int v) {
+    return bat >= mozgasKoltseg(v);
+}
+
+static bool allhat(bool nap, double bat) {
+    (void)bat;
+    if (nap) return true;
+    return bat >= idlePozicio(false) || bat <= 0.0; // at night with 0, time can still pass at 0
+}
+
+
+// Verification helpers (Checks if action is possible)
+static bool varakozasLehetseges(bool nap, double bat) {
+    return allhat(nap, bat);
+}
+
+static bool mozgasLehetseges(double bat, int v) {
+    return mozoghat(bat, v);
+}
+
+static bool banyaszasLehetseges(double bat) {
+    // You have a function called banyaszhat, but it's missing a return type in your snippet.
+    // I'll define the check here:
+    return bat >= 2.0; 
+}
+
+// Application helpers (Applies the battery cost/gain)
+static double varakozasAlkalmazasa(double bat, bool nap) {
+    return allFunc(bat, nap);
+}
+
+static double mozgasAlkalmazasa(double bat, bool nap, int v) {
+    return mozogFunc(bat, nap, v);
+}
+
+static double banyaszasAlkalmazasa(double bat, bool nap) {
+    return banyaszFunc(bat, nap);
+}
+
+// Helpers for sim_step calls
+static bool can_do_mine(double bat) {
+    return bat >= 2.0;
+}
+
+static double apply_mine(double bat, bool nap) {
+    return banyaszFunc(bat, nap);
+}
+
+static double apply_stand(double bat, bool nap) {
+    return allFunc(bat, nap);
+}
+
+static inline bool nap_van_ciklus(int utes) {
+    // utes 0 starts at sunrise (06:00), naptime lasts 16h = 32 utess
+    return (utes % CIKLUS_UTES) < NAP_UTES;
+}
+
+static inline float napCiklus(int utes) {
+    float t = 6.0f + 0.5f * (float)utes;
     while (t >= 24.0f) t -= 24.0f;
     while (t < 0.0f)   t += 24.0f;
     return t;
 }
 
-static inline double clamp(double v, double lo, double hi) {
-    if (v < lo) return lo;
-    if (v > hi) return hi;
-    return v;
+
+
+
+static double chebyshev(int kezdo_x, int kezdo_y, int cel_x, int cel_y) {
+    int x = abs(kezdo_x - cel_x);
+    int y = abs(kezdo_y - cel_y);
+    return (double)((x > y) ? x : y);
 }
 
-static inline double move_cost(int v) { return K_MOVE * (double)(v * v); } // k * v^2, k=2
-static inline double idle_cost(bool mining) { return mining ? 2.0 : 1.0; }
-static inline double solar_charge(bool day) { return day ? 10.0 : 0.0; }
-
-static double chebyshev(int x0, int y0, int x1, int y1) {
-    int dx = abs(x0 - x1), dy = abs(y0 - y1);
-    return (double)((dx > dy) ? dx : dy);
+static int minUtesekLepesekhez(int lepesek, int v) {
+    if (lepesek <= 0) return 0;
+    return (lepesek + v - 1) / v;
 }
 
-static int min_ticks_to_cover_steps(int steps, int v) {
-    if (steps <= 0) return 0;
-    return (steps + v - 1) / v;
+static int teljesUtMinUtesek(int out_lepesek, bool kell_banyaszni, int in_lepesek) {
+    return minUtesekLepesekhez(out_lepesek, 3)
+         + (kell_banyaszni ? 1 : 0)
+         + minUtesekLepesekhez(in_lepesek, 3);
 }
 
-// -------------------- GUI-compatible logger (13 columns, no header) --------------------
+// -------------------- GUI-compatible logger --------------------
 static void log_gui_line(FILE *f, int round, const Rover *r,
-                         int speed, int pathCount,
-                         const char *timePeriod, float exactTime,
-                         const char *stateStr)
+                         int v, int megtett_cellak,
+                         const char *ido_intervalum, float napszak,
+                         const char *muvelet)
 {
     int total = r->green + r->yellow + r->blue;
     fprintf(f, "%d,%d,%d,%.2f,%d,%d,%d,%d,%d,%d,%s,%.2f,%s\n",
             round,
             (int)r->x, (int)r->y,
             (float)r->bat,
-            speed,
-            pathCount,
+            v,
+            megtett_cellak,
             total,
             r->green, r->yellow, r->blue,
-            timePeriod,
-            exactTime,
-            stateStr);
+            ido_intervalum,
+            napszak,
+            muvelet);
 }
 
 // -------------------- BFS home distance (8-dir, unit cost) --------------------
-static void precompute_home_dist(int8_t sx, int8_t sy) {
-    memset(home_dist, 255, sizeof(home_dist));
+static void cellatolHazaTav(int8_t bazis_x, int8_t bazis_y) {
+    memset(home_dist, 255, sizeof(home_dist)); // Initialize all to 255
+    static int16_t sor_x[MAX_PATH], sor_y[MAX_PATH];
+    int sor_eleje = 0, sor_vege = 0;
 
-    static int16_t qx[MAX_PATH], qy[MAX_PATH];
-    int head = 0, tail = 0;
+    home_dist[bazis_y][bazis_x] = 0;
+    sor_x[sor_vege] = bazis_x;
+    sor_y[sor_vege] = bazis_y;
+    sor_vege++;
 
-    home_dist[sy][sx] = 0;
-    qx[tail] = sx; qy[tail] = sy; tail++;
+    static const int szomszed_x[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+    static const int szomszed_y[8] = {-1,  0,  1,-1, 1,-1, 0, 1};
 
-    static const int dx8[8] = {-1,-1,-1, 0,0, 1,1,1};
-    static const int dy8[8] = {-1, 0, 1,-1,1,-1,0,1};
+    while (sor_eleje < sor_vege) {
+        int aktualis_x = sor_x[sor_eleje];
+        int aktualis_y = sor_y[sor_eleje];
+        sor_eleje++;
 
-    while (head < tail) {
-        int x = qx[head], y = qy[head]; head++;
-        uint8_t d = home_dist[y][x];
+        uint8_t aktualis_tavolsag = home_dist[aktualis_y][aktualis_x];
 
-        for (int i = 0; i < 8; i++) {
-            int nx = x + dx8[i], ny = y + dy8[i];
-            if (!inb(nx, ny)) continue;
-            if (mapv[ny][nx] == 1) continue;           // obstacle
-            if (home_dist[ny][nx] != 255) continue;    // visited
-            home_dist[ny][nx] = (uint8_t)(d + 1);
-            qx[tail] = nx; qy[tail] = ny; tail++;
+        for (int szomszed_index = 0; szomszed_index < 8; szomszed_index++) {
+            int kovetkezo_x = aktualis_x + szomszed_x[szomszed_index];
+            int kovetkezo_y = aktualis_y + szomszed_y[szomszed_index];
+
+            if (!inRange(kovetkezo_x, kovetkezo_y)) continue;
+            if (mapv[kovetkezo_y][kovetkezo_x] == 1) continue;
+            if (home_dist[kovetkezo_y][kovetkezo_x] != 255) continue;
+
+            home_dist[kovetkezo_y][kovetkezo_x] = (uint8_t)(aktualis_tavolsag + 1);
+            sor_x[sor_vege] = kovetkezo_x;
+            sor_y[sor_vege] = kovetkezo_y;
+            sor_vege++;
         }
     }
 }
 
 // -------------------- A* pathfinding (8-dir, unit cost) --------------------
-static int reconstruct(Node nodes[H][W], int sx, int sy, int gx, int gy, Pt *path, int maxlen) {
-    int len = 0;
-    int cx = gx, cy = gy;
-    while (!(cx == sx && cy == sy)) {
-        if (len >= maxlen) return -1;
-        path[len++] = (Pt){(int8_t)cx, (int8_t)cy};
+static int utvonalVisszaepites(Node nodes[H][W], int start_x, int start_y, int cel_x, int cel_y, Pt *utvonal, int max_hossz) {
+    int ut_hossz = 0;
+    int aktualis_x = cel_x;
+    int aktualis_y = cel_y;
 
-        int px = nodes[cy][cx].px;
-        int py = nodes[cy][cx].py;
-        if (px < 0 || py < 0) return -1;
-        cx = px; cy = py;
-    }
-    if (len >= maxlen) return -1;
-    path[len++] = (Pt){(int8_t)sx, (int8_t)sy};
+    while (!(aktualis_x == start_x && aktualis_y == start_y)) {
 
-    for (int i = 0; i < len / 2; i++) {
-        Pt t = path[i];
-        path[i] = path[len - 1 - i];
-        path[len - 1 - i] = t;
+        if (ut_hossz >= max_hossz)
+            return -1;
+
+        utvonal[ut_hossz++] = (Pt){(int8_t)aktualis_x, (int8_t)aktualis_y};
+
+        int elozo_x = nodes[aktualis_y][aktualis_x].px;
+        int elozo_y = nodes[aktualis_y][aktualis_x].py;
+
+        if (elozo_x < 0 || elozo_y < 0)
+            return -1;
+
+        aktualis_x = elozo_x;
+        aktualis_y = elozo_y;
     }
-    return len;
+
+    if (ut_hossz >= max_hossz)
+        return -1;
+
+    utvonal[ut_hossz++] = (Pt){(int8_t)start_x, (int8_t)start_y};
+
+    for (int i = 0; i < ut_hossz / 2; i++) {
+        Pt csere = utvonal[i];
+        utvonal[i] = utvonal[ut_hossz - 1 - i];
+        utvonal[ut_hossz - 1 - i] = csere;
+    }
+
+    return ut_hossz;
 }
 
-static int astar_path(int sx, int sy, int gx, int gy, Pt *out, int outmax) {
+static int astarAlg(int start_x, int start_y, int cel_x, int cel_y, Pt *utvonal, int max_hossz) {
     Node nodes[H][W];
-    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+    for (int y = 0; y < H; y++) {
+    for (int x = 0; x < W; x++) {
         nodes[y][x].g = 1e100;
         nodes[y][x].f = 1e100;
         nodes[y][x].px = -1;
@@ -174,250 +290,413 @@ static int astar_path(int sx, int sy, int gx, int gy, Pt *out, int outmax) {
         nodes[y][x].open = false;
         nodes[y][x].closed = false;
     }
+}
 
-    nodes[sy][sx].g = 0.0;
-    nodes[sy][sx].f = chebyshev(sx, sy, gx, gy);
-    nodes[sy][sx].open = true;
+    nodes[start_y][start_x].g = 0.0;
+    nodes[start_y][start_x].f = chebyshev(start_x, start_y, cel_x, cel_y);
+    nodes[start_y][start_x].open = true;
 
-    static const int dx8[8] = {-1,-1,-1, 0,0, 1,1,1};
-    static const int dy8[8] = {-1, 0, 1,-1,1,-1,0,1};
+    static const int szomszed_x[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+    static const int szomszed_y[8] = {-1,  0,  1,-1, 1,-1, 0, 1};
 
     while (1) {
-        int bestx = -1, besty = -1;
-        double bestf = 1e100;
+        int legjobb_x = -1;
+        int legjobb_y = -1;
+        double legjobb_f = 1e100;
 
-        for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
-            if (nodes[y][x].open && !nodes[y][x].closed && nodes[y][x].f < bestf) {
-                bestf = nodes[y][x].f;
-                bestx = x; besty = y;
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                if (nodes[y][x].open &&
+                    !nodes[y][x].closed &&
+                    nodes[y][x].f < legjobb_f) {
+                    legjobb_f = nodes[y][x].f;
+                    legjobb_x = x;
+                    legjobb_y = y;
+                }
             }
         }
-        if (bestx < 0) return -1; // no path
 
-        if (bestx == gx && besty == gy) {
-            return reconstruct(nodes, sx, sy, gx, gy, out, outmax);
+        if (legjobb_x < 0)
+            return -1;
+
+        if (legjobb_x == cel_x && legjobb_y == cel_y) {
+            return utvonalVisszaepites(nodes, start_x, start_y, cel_x, cel_y, utvonal, max_hossz);
         }
 
-        nodes[besty][bestx].closed = true;
+        nodes[legjobb_y][legjobb_x].closed = true;
 
-        for (int i = 0; i < 8; i++) {
-            int nx = bestx + dx8[i], ny = besty + dy8[i];
-            if (!inb(nx, ny)) continue;
-            if (mapv[ny][nx] == 1) continue;
+        for (int szomszed_index = 0; szomszed_index < 8; szomszed_index++) {
+            int kovetkezo_x = legjobb_x + szomszed_x[szomszed_index];
+            int kovetkezo_y = legjobb_y + szomszed_y[szomszed_index];
 
-            double ng = nodes[besty][bestx].g + 1.0;
-            if (ng < nodes[ny][nx].g) {
-                nodes[ny][nx].g = ng;
-                nodes[ny][nx].f = ng + chebyshev(nx, ny, gx, gy);
-                nodes[ny][nx].px = (int8_t)bestx;
-                nodes[ny][nx].py = (int8_t)besty;
-                nodes[ny][nx].open = true;
+            if (!inRange(kovetkezo_x, kovetkezo_y)) continue;
+            if (mapv[kovetkezo_y][kovetkezo_x] == 1) continue;
+
+            double uj_g = nodes[legjobb_y][legjobb_x].g + 1.0;
+
+            if (uj_g < nodes[kovetkezo_y][kovetkezo_x].g) {
+                nodes[kovetkezo_y][kovetkezo_x].g = uj_g;
+                nodes[kovetkezo_y][kovetkezo_x].f =
+                    uj_g + chebyshev(kovetkezo_x, kovetkezo_y, cel_x, cel_y);
+                nodes[kovetkezo_y][kovetkezo_x].px = (int8_t)legjobb_x;
+                nodes[kovetkezo_y][kovetkezo_x].py = (int8_t)legjobb_y;
+                nodes[kovetkezo_y][kovetkezo_x].open = true;
             }
         }
     }
 }
 
-// -------------------- Target selection --------------------
-static bool pick_target(const Rover *r, const Mission *m, int ticks_left,
-                        int *out_tx, int *out_ty)
-{
+// -------------------- Battery / action helpers --------------------
+//
+// Main rule interpretation used here:
+// - Movement and banyasz are forbidden if battery is insufficient for their action cost.
+// - naptime standing is allowed even from 0 battery, because solar charging happens in the same half-hour.
+// - Nighttime standing with battery 0 just leaves battery at 0.
+
+
+
+// -------------------- Feasibility simulator --------------------
+//
+// Simulates whether a plan is feasible by mission end.
+// Plan form:
+//   1) move "out_lepesek" cells
+//   2) optionally mine once
+//   3) move "in_lepesek" cells
+//
+// It greedily chooses the locally best legal action that preserves eventual feasibility.
+// This is used for:
+// - target selection
+// - safe-return guarantees
+// - choosing a move v that keeps the plan feasible
+//
+static FeasResult utvonalTervSzimulacio(int kezdo_utes, double kezdo_akku, int oda_lepesek, bool kell_banyaszni, int vissza_lepesek, int max_utes) {
+    int aktualis_utes = kezdo_utes;
+    double aktualis_akku = kezdo_akku;
+
+    while (aktualis_utes < max_utes) {
+
+        if (oda_lepesek == 0 && !kell_banyaszni && vissza_lepesek == 0) {
+            FeasResult eredmeny = { true, aktualis_utes, aktualis_akku };
+            return eredmeny;
+        }
+
+        bool nappal = nap_van_ciklus(aktualis_utes);
+        int hatralevo_utes = max_utes - (aktualis_utes + 1);
+
+        bool van_ervenyes_lepes = false;
+        double legjobb_akku = -1e100;
+        int legjobb_haladas = -1;
+
+        if (varakozasLehetseges(nappal, aktualis_akku)) {
+            double uj_akku = varakozasAlkalmazasa(aktualis_akku, nappal);
+
+            if (teljesUtMinUtesek(oda_lepesek, kell_banyaszni, vissza_lepesek) <= hatralevo_utes) {
+                van_ervenyes_lepes = true;
+                legjobb_akku = uj_akku;
+                legjobb_haladas = 0;
+            }
+        }
+
+        if (oda_lepesek > 0 || (!kell_banyaszni && vissza_lepesek > 0)) {
+            int aktualis_szakasz_lepes = (oda_lepesek > 0) ? oda_lepesek : vissza_lepesek;
+
+            for (int sebesseg = 1; sebesseg <= 3; sebesseg++) {
+                if (sebesseg > aktualis_szakasz_lepes) continue;
+                if (!mozgasLehetseges(aktualis_akku, sebesseg)) continue;
+
+                int uj_oda_lepesek = oda_lepesek;
+                int uj_vissza_lepesek = vissza_lepesek;
+
+                if (oda_lepesek > 0) uj_oda_lepesek -= sebesseg;
+                else                 uj_vissza_lepesek -= sebesseg;
+
+                double uj_akku = mozgasAlkalmazasa(aktualis_akku, nappal, sebesseg);
+
+                if (teljesUtMinUtesek(uj_oda_lepesek, kell_banyaszni, uj_vissza_lepesek) <= hatralevo_utes) {
+                    if (!van_ervenyes_lepes ||
+                        uj_akku > legjobb_akku ||
+                        (fabs(uj_akku - legjobb_akku) < 1e-9 && sebesseg > legjobb_haladas)) {
+                        van_ervenyes_lepes = true;
+                        legjobb_akku = uj_akku;
+                        legjobb_haladas = sebesseg;
+                    }
+                }
+            }
+        }
+
+        if (oda_lepesek == 0 && kell_banyaszni && banyaszasLehetseges(aktualis_akku)) {
+            double uj_akku = banyaszasAlkalmazasa(aktualis_akku, nappal);
+
+            if (teljesUtMinUtesek(oda_lepesek, false, vissza_lepesek) <= hatralevo_utes) {
+                if (!van_ervenyes_lepes ||
+                    uj_akku > legjobb_akku ||
+                    (fabs(uj_akku - legjobb_akku) < 1e-9 && 1 > legjobb_haladas)) {
+                    van_ervenyes_lepes = true;
+                    legjobb_akku = uj_akku;
+                    legjobb_haladas = 1;
+                }
+            }
+        }
+
+        if (!van_ervenyes_lepes) {
+            FeasResult eredmeny = { false, aktualis_utes, aktualis_akku };
+            return eredmeny;
+        }
+
+        if (legjobb_haladas == 0) {
+            aktualis_akku = varakozasAlkalmazasa(aktualis_akku, nappal);
+        }
+        else if (oda_lepesek > 0 || (!kell_banyaszni && vissza_lepesek > 0)) {
+            int aktualis_szakasz_lepes = (oda_lepesek > 0) ? oda_lepesek : vissza_lepesek;
+
+            if (legjobb_haladas <= aktualis_szakasz_lepes &&
+                mozgasLehetseges(aktualis_akku, legjobb_haladas)) {
+
+                if (oda_lepesek > 0) oda_lepesek -= legjobb_haladas;
+                else                 vissza_lepesek -= legjobb_haladas;
+
+                aktualis_akku = mozgasAlkalmazasa(aktualis_akku, nappal, legjobb_haladas);
+            }
+            else {
+                FeasResult eredmeny = { false, aktualis_utes, aktualis_akku };
+                return eredmeny;
+            }
+        }
+        else if (oda_lepesek == 0 && kell_banyaszni && legjobb_haladas == 1) {
+            if (!banyaszasLehetseges(aktualis_akku)) {
+                FeasResult eredmeny = { false, aktualis_utes, aktualis_akku };
+                return eredmeny;
+            }
+
+            kell_banyaszni = false;
+            aktualis_akku = banyaszasAlkalmazasa(aktualis_akku, nappal);
+        }
+        else {
+            FeasResult eredmeny = { false, aktualis_utes, aktualis_akku };
+            return eredmeny;
+        }
+
+        aktualis_utes++;
+    }
+
+    FeasResult eredmeny = { false, aktualis_utes, aktualis_akku };
+    return eredmeny; 
+}
+
+
+// -------------------- Safe target selection --------------------
+static bool pick_target_safe(const Rover *r, const Mission *m, int *out_tx, int *out_ty) {
     int best_tx = -1, best_ty = -1;
-    double best_score = -1e100;
+    int best_trip_lepesek = 1e9;
+    int best_to_lepesek = 1e9;
+    double best_end_bat = -1.0;
 
     Pt tmp[MAX_PATH];
 
     for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
-        if (mapv[y][x] != 2) continue; // not a mineral
+        if (mapv[y][x] != 2) continue;
+        if (home_dist[y][x] == 255) continue;
 
-        int len = astar_path(r->x, r->y, x, y, tmp, MAX_PATH);
+        int len = astarAlg(r->x, r->y, x, y, tmp, MAX_PATH);
         if (len < 0) continue;
 
-        int steps_to = len - 1;
+        int lepesek_to = len - 1;
+        int lepesek_home = (int)home_dist[y][x];
 
-        if (home_dist[y][x] == 255) continue;
-        int steps_home_from = (int)home_dist[y][x];
+        FeasResult fr = utvonalTervSzimulacio(r->utes, r->bat,
+                                           lepesek_to, true, lepesek_home,
+                                           m->total_utess);
+        if (!fr.ok) continue;
 
-        // optimistic feasibility with vmax=3
-        int min_ticks_need = min_ticks_to_cover_steps(steps_to, 3) + 1
-                           + min_ticks_to_cover_steps(steps_home_from, 3);
+        int trip_lepesek = lepesek_to + lepesek_home;
 
-        if (min_ticks_need > ticks_left) continue;
-
-        // Simple score (all minerals equal) - prefer closer + not too far from home
-        double score = 1000.0 - 2.0 * steps_to - 1.0 * steps_home_from;
-
-        if (score > best_score) {
-            best_score = score;
-            best_tx = x; best_ty = y;
+        // All minerals equal: prefer shorter safe round-trip.
+        // Tie-break by closer target, then more remaining battery.
+        if (trip_lepesek < best_trip_lepesek ||
+            (trip_lepesek == best_trip_lepesek && lepesek_to < best_to_lepesek) ||
+            (trip_lepesek == best_trip_lepesek && lepesek_to == best_to_lepesek && fr.end_bat > best_end_bat))
+        {
+            best_trip_lepesek = trip_lepesek;
+            best_to_lepesek = lepesek_to;
+            best_end_bat = fr.end_bat;
+            best_tx = x;
+            best_ty = y;
         }
     }
 
     if (best_tx < 0) return false;
-    *out_tx = best_tx; *out_ty = best_ty;
+    *out_tx = best_tx;
+    *out_ty = best_ty;
     return true;
 }
 
-static int choose_speed(bool day, int ticks_left, int steps_to_home, double bat) {
-    // Day: v=2 default (net +2). Night: v=1 default (cheap).
-    int v = day ? 2 : 1;
+// -------------------- Choose current safe move v --------------------
+static int choose_safe_move_v(const Rover *r, const Mission *m,
+                                  const Pt *path, int lepesek_to_goal,
+                                  bool target_is_mineral, int target_x, int target_y)
+{
+    bool nap = nap_van_ciklus(r->utes);
+    int order[3];
 
-    int min_home_fast = min_ticks_to_cover_steps(steps_to_home, 3);
-    int min_home_med  = min_ticks_to_cover_steps(steps_to_home, 2);
-    int min_home_slow = min_ticks_to_cover_steps(steps_to_home, 1);
+    // Strategy:
+    // - naptime: prefer v=2, then v=1, then v=3
+    // - nighttime: prefer v=1, then v=2, then v=3
+    if (nap) {
+        order[0] = 2; order[1] = 1; order[2] = 3;
+    } else {
+        order[0] = 1; order[1] = 2; order[2] = 3;
+    }
 
-    // If time is tight, go faster
-    if (ticks_left <= min_home_fast + 1) v = 3;
-    else if (ticks_left <= min_home_med + 2) v = 2;
-    else if (!day && ticks_left <= min_home_slow + 2) v = 2;
+    // If time is exactly tight, try higher v first.
+    int rem_utess = m->total_utess - r->utes;
+    int min_need_now;
+    if (target_is_mineral) {
+        min_need_now = teljesUtMinUtesek(lepesek_to_goal, true, (int)home_dist[target_y][target_x]);
+    } else {
+        min_need_now = teljesUtMinUtesek(lepesek_to_goal, false, 0);
+    }
+    if (rem_utess <= min_need_now) {
+        order[0] = 3; order[1] = 2; order[2] = 1;
+    }
 
-    // Battery guard
-    if (v == 3 && bat < move_cost(3)) v = 2;
-    if (v == 2 && bat < move_cost(2)) v = 1;
+    for (int i = 0; i < 3; i++) {
+        int v = order[i];
+        if (v > lepesek_to_goal) continue;
+        if (!mozoghat(r->bat, v)) continue;
 
-    return v;
+        double bat2 = mozogFunc(r->bat, nap, v);
+
+        if (target_is_mineral) {
+            int rem_to_target = lepesek_to_goal - v;
+            int home_from_target = (int)home_dist[target_y][target_x];
+            FeasResult fr = utvonalTervSzimulacio(r->utes + 1, bat2,
+                                               rem_to_target, true, home_from_target,
+                                               m->total_utess);
+            if (fr.ok) return v;
+        } else {
+            int rem_home = lepesek_to_goal - v;
+            FeasResult fr = utvonalTervSzimulacio(r->utes + 1, bat2,
+                                               rem_home, false, 0,
+                                               m->total_utess);
+            if (fr.ok) return v;
+        }
+    }
+
+    return 0;
 }
 
 // -------------------- Simulation step --------------------
+// -------------------- Simulation step --------------------
 static void sim_step(Rover *r, const Mission *m, FILE *log_csv, FILE *log_ai) {
-    bool day = is_day_tick(r->tick);
-    const char *tp = day ? "DAY" : "NIGHT";
-    float et = exact_time_hours_0630(r->tick);
+    bool nap = nap_van_ciklus(r->utes);
+    const char *tp = nap ? "nap" : "NIGHT";
+    float et = napCiklus(r->utes);
 
-    int ticks_left = m->total_ticks - r->tick;
-
-    // If no path home from current position, safest: stand
-    if (home_dist[r->y][r->x] == 255) {
-        double cons = idle_cost(false);
-        if (r->bat >= cons) r->bat = clamp(r->bat - cons + solar_charge(day), 0.0, BAT_MAX);
-        else r->bat = 0.0;
-
-        log_gui_line(log_csv, r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-        log_gui_line(log_ai,  r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-        r->tick++;
-        return;
+    // 0) CRITICAL SAFETY CHECK
+    int dist_to_home = (int)home_dist[r->y][r->x];
+    
+    // If we can't find home in the distance map, something is wrong with BFS
+    if (dist_to_home == 255) {
+        goto force_home; 
     }
 
-    int steps_home = (int)home_dist[r->y][r->x];
+    // How many half-hours do we need at max speed (v=3)?
+    int time_needed_to_return = (dist_to_home + 2) / 3; 
+    int time_left = m->total_utess - r->utes;
 
-    // If on mineral: mine if time-feasible + battery-feasible
-    if (mapv[r->y][r->x] == 2) {
-        int need_ticks = 1 + min_ticks_to_cover_steps(steps_home, 3);
-        double cons = idle_cost(true);
+    // If time is running out, jump straight to movement logic
+    if (time_left <= time_needed_to_return + 1) {
+        goto force_home; 
+    }
 
-        if (need_ticks <= ticks_left && r->bat >= cons) {
-            // Count color from mapc
-            char mineral = mapc[r->y][r->x]; // 'G'/'Y'/'B'
-            if (mineral == 'G') r->green++;
-            else if (mineral == 'Y') r->yellow++;
-            else if (mineral == 'B') r->blue++;
+    // 1) If rover is on a mineral, mine only if banyasz now still preserves guaranteed return.
+    if (mapv[r->y][r->x] == 2 && home_dist[r->y][r->x] != 255) {
+        int lepesek_home = (int)home_dist[r->y][r->x];
+        if (can_do_mine(r->bat)) {
+            double bat2 = apply_mine(r->bat, nap);
+            FeasResult fr = utvonalTervSzimulacio(r->utes + 1, bat2,
+                                               0, false, lepesek_home,
+                                               m->total_utess);
+            if (fr.ok) {
+                char mineral = mapc[r->y][r->x];
+                if (mineral == 'G') r->green++;
+                else if (mineral == 'Y') r->yellow++;
+                else if (mineral == 'B') r->blue++;
 
-            mapv[r->y][r->x] = 0;
-            mapc[r->y][r->x] = '.';
+                mapv[r->y][r->x] = 0;
+                mapc[r->y][r->x] = '.';
+                r->bat = bat2;
 
-            r->bat = clamp(r->bat - cons + solar_charge(day), 0.0, BAT_MAX);
-
-            log_gui_line(log_csv, r->tick, r, 0, r->moved_cells, tp, et, "DIGGING");
-            log_gui_line(log_ai,  r->tick, r, 0, r->moved_cells, tp, et, "DIGGING");
-            r->tick++;
-            return;
+                log_gui_line(log_csv, r->utes, r, 0, r->moved_cells, tp, et, "DIGGING");
+                log_gui_line(log_ai,  r->utes, r, 0, r->moved_cells, tp, et, "DIGGING");
+                r->utes++;
+                return;
+            }
         }
-        // else: fall through to go home or move elsewhere
     }
 
-    // Decide if must go home now (time pressure)
-    int min_home_fast = min_ticks_to_cover_steps(steps_home, 3);
-    bool must_home = (ticks_left <= min_home_fast + 1);
-
+    // 2) Try a safe mineral target first.
     int tx = -1, ty = -1;
-    bool have_target = false;
-    if (!must_home) {
-        have_target = pick_target(r, m, ticks_left, &tx, &ty);
+    bool have_target = pick_target_safe(r, m, &tx, &ty);
+
+    if (have_target) {
+        Pt path[MAX_PATH];
+        int plen = astarAlg(r->x, r->y, tx, ty, path, MAX_PATH);
+
+        if (plen >= 0) {
+            int lepesek_to_goal = plen - 1;
+            if (lepesek_to_goal > 0) {
+                int v = choose_safe_move_v(r, m, path, lepesek_to_goal, true, tx, ty);
+                if (v > 0) {
+                    Pt dest = path[v];
+                    r->x = dest.x;
+                    r->y = dest.y;
+                    r->moved_cells += v;
+                    r->bat = mozogFunc(r->bat, nap, v);
+
+                    log_gui_line(log_csv, r->utes, r, v, r->moved_cells, tp, et, "MOVING");
+                    log_gui_line(log_ai,  r->utes, r, v, r->moved_cells, tp, et, "MOVING");
+                    r->utes++;
+                    return;
+                }
+            }
+        }
     }
 
-    int goalx = (must_home || !have_target) ? m->sx : tx;
-    int goaly = (must_home || !have_target) ? m->sy : ty;
+    // 3) Home Return Priority
+force_home: 
+    if (r->x != m->sx || r->y != m->sy) {
+        Pt home_path[MAX_PATH];
+        int home_len = astarAlg(r->x, r->y, m->sx, m->sy, home_path, MAX_PATH);
 
-    // If already at goal and no target: stand
-    if (r->x == goalx && r->y == goaly) {
-        double cons = idle_cost(false);
-        if (r->bat >= cons) r->bat = clamp(r->bat - cons + solar_charge(day), 0.0, BAT_MAX);
-        else r->bat = 0.0;
+        if (home_len >= 0) {
+            int lepesek_home = home_len - 1;
+            if (lepesek_home > 0) {
+                int vhome = choose_safe_move_v(r, m, home_path, lepesek_home, false, m->sx, m->sy);
+                if (vhome > 0) {
+                    Pt dest = home_path[vhome];
+                    r->x = dest.x;
+                    r->y = dest.y;
+                    r->moved_cells += vhome;
+                    r->bat = mozogFunc(r->bat, nap, vhome);
 
-        log_gui_line(log_csv, r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-        log_gui_line(log_ai,  r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-        r->tick++;
-        return;
+                    log_gui_line(log_csv, r->utes, r, vhome, r->moved_cells, tp, et, "MOVING");
+                    log_gui_line(log_ai,  r->utes, r, vhome, r->moved_cells, tp, et, "MOVING");
+                    r->utes++;
+                    return;
+                }
+            }
+        }
     }
 
-    // Build A* path to goal
-    Pt path[MAX_PATH];
-    int plen = astar_path(r->x, r->y, goalx, goaly, path, MAX_PATH);
-    if (plen < 0) {
-        // can't reach goal -> stand
-        double cons = idle_cost(false);
-        if (r->bat >= cons) r->bat = clamp(r->bat - cons + solar_charge(day), 0.0, BAT_MAX);
-        else r->bat = 0.0;
-
-        log_gui_line(log_csv, r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-        log_gui_line(log_ai,  r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-        r->tick++;
-        return;
-    }
-
-    int steps_to_goal = plen - 1;
-
-    // Choose speed
-    int v = choose_speed(day, ticks_left, steps_home, r->bat);
-
-    // If goal is closer than v, still spend energy for chosen v (per rules: speed chosen per round)
-    int step_count = v;
-    if (step_count > steps_to_goal) step_count = steps_to_goal;
-    if (step_count < 1) step_count = 0;
-
-    // Battery check; downgrade if needed
-    double cons = (step_count > 0) ? move_cost(v) : idle_cost(false);
-    if (step_count > 0 && r->bat < cons) {
-        if (v == 3) { v = 2; cons = move_cost(v); }
-        if (v == 2 && r->bat < cons) { v = 1; cons = move_cost(v); }
-    }
-
-    if (step_count > 0 && r->bat < cons) {
-        // can't move -> stand
-        cons = idle_cost(false);
-        if (r->bat >= cons) r->bat = clamp(r->bat - cons + solar_charge(day), 0.0, BAT_MAX);
-        else r->bat = 0.0;
-
-        log_gui_line(log_csv, r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-        log_gui_line(log_ai,  r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-        r->tick++;
-        return;
-    }
-
-    // Move along path by step_count cells
-    if (step_count > 0) {
-        Pt dest = path[step_count]; // path[0]=current
-        r->x = dest.x;
-        r->y = dest.y;
-        r->moved_cells += step_count;
-        r->bat = clamp(r->bat - move_cost(v) + solar_charge(day), 0.0, BAT_MAX);
-
-        log_gui_line(log_csv, r->tick, r, v, r->moved_cells, tp, et, "MOVING");
-        log_gui_line(log_ai,  r->tick, r, v, r->moved_cells, tp, et, "MOVING");
-        r->tick++;
-        return;
-    }
-
-    // No step (should be rare): stand
-    cons = idle_cost(false);
-    if (r->bat >= cons) r->bat = clamp(r->bat - cons + solar_charge(day), 0.0, BAT_MAX);
-    else r->bat = 0.0;
-
-    log_gui_line(log_csv, r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-    log_gui_line(log_ai,  r->tick, r, 0, r->moved_cells, tp, et, "STANDING");
-    r->tick++;
+    // 4) Default Action: Standing
+    r->bat = apply_stand(r->bat, nap);
+    log_gui_line(log_csv, r->utes, r, 0, r->moved_cells, tp, et, "STANDING");
+    log_gui_line(log_ai,  r->utes, r, 0, r->moved_cells, tp, et, "STANDING");
+    r->utes++;
 }
 
-// -------------------- Map reading (CSV like GUI) --------------------
+// -------------------- Map reading --------------------
 static int load_map_csv(const char *fname, Mission *m) {
     FILE *f = fopen(fname, "r");
     if (!f) return 0;
@@ -443,7 +722,10 @@ static int load_map_csv(const char *fname, Mission *m) {
                 mapv[y][x] = 1;
             } else if (c == 'B' || c == 'Y' || c == 'G') {
                 mapv[y][x] = 2;
+            } else if (c == '.') {
+                mapv[y][x] = 0;
             } else {
+                // Unknown cell treated as free surface for robustness.
                 mapv[y][x] = 0;
                 mapc[y][x] = '.';
             }
@@ -465,20 +747,20 @@ int main(void) {
     if (scanf("%d", &hours) != 1) return 1;
     if (hours < 24) hours = 24;
 
-    m.total_ticks = hours * TICKS_PER_HOUR;
+    m.total_utess = hours * UTES_PER_ORA;
 
     if (!load_map_csv("mars_map_50x50.csv", &m)) {
         printf("Hiba: nem tudtam beolvasni a mars_map_50x50.csv térképet (vagy nincs 'S').\n");
         return 1;
     }
 
-    precompute_home_dist(m.sx, m.sy);
+    cellatolHazaTav(m.sx, m.sy);
 
     Rover r;
     r.x = m.sx; r.y = m.sy;
     r.bat = 100.0;
     r.green = r.yellow = r.blue = 0;
-    r.tick = 0;
+    r.utes = 0;
     r.moved_cells = 0;
 
     FILE *log_csv = fopen("rover_log.csv", "w");
@@ -490,7 +772,11 @@ int main(void) {
         return 1;
     }
 
-    while (r.tick < m.total_ticks && r.bat > 0.0) {
+    // Core fix: simulation runs until time expires, not until battery hits zero.
+    log_gui_line(log_csv, -1, &r, 0, r.moved_cells, "nap", napCiklus(0), "STANDING");
+    log_gui_line(log_ai,  -1, &r, 0, r.moved_cells, "nap", napCiklus(0), "STANDING");
+
+    while (r.utes < m.total_utess) {
         sim_step(&r, &m, log_csv, log_ai);
     }
 
@@ -499,7 +785,7 @@ int main(void) {
 
     bool success = (r.x == m.sx && r.y == m.sy);
     printf("\n--- Küldetés vége ---\n");
-    printf("Eredmény: %s\n", success ? "SIKERES (hazatért)" : "NEM (nem ért haza / lemerült)");
+    printf("Eredmény: %s\n", success ? "SIKERES (hazatért)" : "NEM (nem ért haza)");
     printf("Ásványok: total=%d (G=%d, Y=%d, B=%d)\n",
            r.green + r.yellow + r.blue, r.green, r.yellow, r.blue);
     printf("Akkumulátor: %.1f%%\n", r.bat);
