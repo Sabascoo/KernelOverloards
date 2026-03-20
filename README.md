@@ -110,7 +110,9 @@ Ha a CMakeCache hibát kapnak (pl. mappa átnevezés vagy áthelyezés után):
 
 ```powershell
 del build-mingw\CMakeCache.txt
-rmdir /s /q build-mingw\CMakeFiles
+rmdir build-mingw\CMakeFiles
+(... If you continue, all children will be removed with the item. Are you sure you want to continue?
+[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): y)
 cmake -S . -B build-mingw -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build-mingw --config Release
 ```
