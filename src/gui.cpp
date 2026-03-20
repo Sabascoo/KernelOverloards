@@ -89,9 +89,9 @@ static void konzolRajzol(float magassag = 140.0f) {
 }
 
 ImU32 egboltSzin(float h) {
-    if (h >= 6.5f  && h < 10.0f) return IM_COL32(255, 180, 100, 255); // hajnal
-    if (h >= 10.0f && h < 16.0f) return IM_COL32(100, 180, 255, 255); // deli nap
-    if (h >= 16.0f && h < 20.0f) return IM_COL32(255, 100,  50, 255); // alkony
+    if (h >= 6.5f  && h < 10.0f) return IM_COL32(255, 180, 100, 255); //hajnal
+    if (h >= 10.0f && h < 16.0f) return IM_COL32(100, 180, 255, 255); //deli nap
+    if (h >= 16.0f && h < 20.0f) return IM_COL32(255, 100,  50, 255); //alkony
     if (h >= 20.0f && h < 22.5f) return IM_COL32( 40,  40, 100, 255);
     return IM_COL32(10, 10, 25, 255);
 }
@@ -133,7 +133,7 @@ void iranytRajzol(ImVec2 p, float sugar) {
     dl->AddText(ImVec2(kozep.x + ld - 5, kozep.y - 5), IM_COL32(200, 200, 200, 255), "E");
     dl->AddText(ImVec2(kozep.x - ld - 5, kozep.y - 5), IM_COL32(200, 200, 200, 255), "W");
 
-    // 0 fok = Kelet a matban, nekunk 0 = Eszak, ezert -90
+    //0 fok = Kelet a matban; 0 = Eszak, ezert -90
     float rad = (rover.irany - 90.0f) * (float)(M_PI / 180.0f);
     ImVec2 hegy = ImVec2(kozep.x + cosf(rad) * (sugar - 5), kozep.y + sinf(rad) * (sugar - 5));
     ImVec2 bal  = ImVec2(kozep.x + cosf(rad + 1.57f) * 4,   kozep.y + sinf(rad + 1.57f) * 4);
@@ -151,10 +151,10 @@ void fpvRajzol(ImVec2 meret) {
 
     struct Irany { int dx, dy, rx, ry; };
     static const Irany iranyok[] = {
-        { 0,-1, 1, 0},  // eszak
-        { 1, 0, 0, 1},  // kelet
-        { 0, 1,-1, 0},  // del
-        {-1, 0, 0,-1}   // nyugat
+        { 0,-1, 1, 0},  //eszak
+        { 1, 0, 0, 1},  //kelet
+        { 0, 1,-1, 0},  //del
+        {-1, 0, 0,-1}   //nyugat
     };
     int idx = (int)(fmodf(rover.irany + 45.0f, 360.0f) / 90.0f);
     Irany ir = iranyok[idx % 4];
@@ -309,7 +309,7 @@ void diagramRajzol(ImVec2 meret) {
         freq = (rover.seb==1) ? 2.0f : (rover.seb==2) ? 6.0f : 15.0f;
         amp  = meret.y * 0.3f;
     } else if (rover.allapot == BANYASZ) {
-        freq = 45.0f; // magas frekvencia furásnal
+        freq = 45.0f; //magas frekvencia furásnal
         amp  = meret.y * 0.15f;
     }
 
@@ -328,7 +328,7 @@ void balPanelRajzol() {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     float ido      = (float)glfwGetTime();
 
-    // akkumulátor kördiagram
+    //akkumulátor kördiagram
     ImVec2 cp    = ImGui::GetCursorScreenPos();
     ImVec2 kozep = ImVec2(cp.x + ter.x*0.5f, cp.y + 70);
     float r      = 55.0f;
@@ -397,7 +397,7 @@ void balPanelRajzol() {
     ImGui::Spacing();
     ImGui::Columns(3, "res_cols", false);
 
-    // egy oszlopot rajzol az adott nyersanyagbol
+    //egy oszlopot rajzol az adott nyersanyagbol
     auto nyersanyagBar = [&](int db, ImU32 szin, const char* cimke) {
         ImVec2 bp  = ImGui::GetCursorScreenPos();
         float maxM = 85.0f, szeles = 45.0f;
@@ -456,7 +456,7 @@ void terkepRajzol() {
         }
     }
 
-    // AI utvonal kirajzolasa
+    //AI utvonal kirajzolasa
     if (!utvonal.empty()) {
         ImVec2 kezdo = ImVec2(p.x + indX*cs + cs/2.0f, p.y + indY*cs + cs/2.0f);
         dl->AddCircleFilled(kezdo, cs*0.4f, IM_COL32(255,50,50,255));
@@ -476,7 +476,7 @@ void terkepRajzol() {
         }
     }
 
-    // rover pozicio a terkepen
+    //rover pozicio a terkepen
     ImVec2 rPos = ImVec2(p.x + rover.x*cs + cs/2, p.y + rover.y*cs + cs/2);
     float rMer  = cs * 1.2f;
     float rad   = (rover.irany - 90.0f) * (float)(M_PI / 180.0f);
@@ -500,7 +500,7 @@ void aiLepes(float dt) {
     }
 
     lepesIdo += dt;
-    const float LEPES_MASODPERC = 3.0f;
+    const float LEPES_MASODPERC = 3.0f; //it meg lehet változtatni az animáció idejét
     if (lepesIdo < LEPES_MASODPERC) return;
     lepesIdo = 0.0f;
 
