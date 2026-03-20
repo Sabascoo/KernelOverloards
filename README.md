@@ -5,7 +5,7 @@
 **Felkészítő Tanár:** Baksza Dávid 
 **E-mail:** rikovszkyregina@gmail.com
 
-##FONTOS
+## FONTOS
 
 A csapat többi tagja úgy döntött, hogy nem folytatja a részvételt a versenyen, ezért a projektet a továbbiakban egyedül készítem.
 Kérem a tisztelt zsűri megértését a változásokkal kapcsolatban.
